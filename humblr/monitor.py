@@ -172,6 +172,17 @@ class ActivityMonitor:
             if auto is not None and any(b in name for b in ['chrome', 'msedge', 'firefox', 'brave', 'opera']):
                 url = self._try_get_browser_url(hwnd, name)
 
+            chrome_profile = None
+            if 'chrome' in name:
+                try:
+                    proc = psutil.Process(pid)
+                    cmd = ' '.join(proc.cmdline() or [])
+                    import re
+                    m = re.search(r'--profile-directory=([^\s]+)', cmd)
+                    if m:
+                        chrome_profile = m.group(1)
+                except:
+                    pass
             return {
                 "window_title": title[:120] or "",
                 "process_name": name or "",
@@ -180,6 +191,7 @@ class ActivityMonitor:
                 "clipboard": "",
                 "recent_typed": "",
                 "x_content": "",
+                "chrome_profile": chrome_profile,
             }
         except Exception:
             return {
@@ -190,6 +202,7 @@ class ActivityMonitor:
                 "clipboard": "",
                 "recent_typed": "",
                 "x_content": "",
+                "chrome_profile": None,
             }
 
     def _try_get_browser_url(self, hwnd, process_name: str) -> Optional[str]:

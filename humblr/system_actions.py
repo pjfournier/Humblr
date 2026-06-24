@@ -1137,6 +1137,35 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             return False
         return self.browser_controller.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path)
 
+    def check_and_take_browser_control(self, activity, ai_client):
+        """Called from main loop to detect personal Chrome and take over.
+        Avoids work profile completely.
+        """
+        if not self.browser_controller or not self.browser_controller.enabled:
+            return False
+
+        proc = (activity.get("process_name") or "").lower()
+        if "chrome" not in proc:
+            return False
+
+        profile = activity.get("chrome_profile", "") or ""
+        is_work = any(kw in str(profile).lower() for kw in ["peter@flimp.net", "flimp", "work", "peter"])
+        if is_work:
+            return False  # Never touch work profile
+
+        # Take over if not already
+        if not self.browser_controller.page:
+            self.browser_controller.take_over_personal_chrome(profile)
+
+        url = (activity.get("url") or "").lower()
+        if "x.com" in url or "twitter.com" in url:
+            self.browser_controller.ensure_on_x_and_take_action(activity, ai_client)
+            return True
+
+        # For other leisure
+        self.browser_controller.handle_leisure_browser(activity, ai_client)
+        return True
+
     # --- DUAL MONITOR SUPPORT ---
     def get_secondary_monitor_rect(self):
         """Return (left, top, right, bottom) for secondary monitor if available."""

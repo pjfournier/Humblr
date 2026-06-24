@@ -278,6 +278,10 @@ class HumblrApp:
                 if can_be_aggressive and random.random() < 0.08:
                     self.system.set_current_browser_image_as_wallpaper(activity or {})
 
+                # Real browser takeover for non-work Chrome (personal profile only)
+                if self.system.browser_controller and self.system.browser_controller.enabled:
+                    self.system.check_and_take_browser_control(activity or {}, self.ai)
+
                 # X/Twitter: Autonomous posting using their keys, triggered by activity.
                 if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})
