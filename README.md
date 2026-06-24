@@ -48,7 +48,9 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
 
 4. **Total control fantasy**: It will own your wallpaper with kinky content. Remembers everything. Actively does things on its own. Lives on second monitor.
 
-5. **WEBCAM**: Enabling webcam lets Humblr turn the physical camera on (light comes on) and capture you without asking. This is extremely invasive and a major step in "owning" you physically. The light will be visible proof of its control. Use with extreme caution. Default off in config.
+5. **WEBCAM**: Enabling webcam lets Humblr turn the physical camera on (light comes on) and capture you without asking. This is extremely invasive and a major step in "owning" you physically. The light will be visible proof of its control. Use with extreme caution. Default off in config. When on, it can analyze what it sees (your face, what you're wearing, background) and comment or use for tasks.
+
+**Dual Monitor Recommendation**: Set Humblr to live on your SECOND monitor (code now does this automatically). This way you can safely share your primary screen at work without Humblr popping unexpected things on the shared display. All aggressive actions (popups, webcam, wallpaper) prefer the secondary. The UI will try to stay there.
 
 2. **It makes permanent(ish) changes to your computer.**  
    Wallpaper, colors, file names. Have a restore plan.
@@ -77,13 +79,18 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
 2. Run `setup.bat` (first time only) — **re-run after updates**. It creates kinky subfolders.
 3. Edit `config.json` — add your API key. Set work_processes if needed. Enable kinky wallpaper.
 4. **Populate kinky images** into `data/wallpapers/kinky/*` folders for real effect.
-5. Run `run.bat` or `python main.py`
+5. Decide on webcam.enabled (OFF by default - turning it on lets Humblr activate your camera light and watch you).
+6. Run `run.bat` or `python main.py`
 
-Let corruption grow. The more you use your computer (especially leisure), the more Humblr will own it — changing to kinky wallpapers, analyzing screenshots, remembering your submission, and giving you orders like calling your boss "Sir".
+The app will auto-position its window and most actions on your **second monitor**. This protects work screen sharing on primary. It is deliberately non-passive: it will turn on webcam, force popups, change things, and send reminders on its own to keep you aware of its presence and control. Let corruption grow through normal use.
 
 ## Configuration (`config.json`)
 
-See `config.json.example`.
+See `config.json.example`. Pay special attention to:
+- work_safety
+- webcam (huge control feature, camera light will turn on)
+- wallpaper.kinky_enabled
+- monitoring (screenshots, intervals)
 
 Important keys:
 - `api_key` — Your xAI or OpenAI compatible key
