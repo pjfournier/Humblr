@@ -90,6 +90,7 @@ class HumblrApp:
             ai=self.ai,
             system=self.system,
         )
+        self.system.ui = self.ui  # so popups can also log to chat
 
         # Initial greeting from Humblr - total ownership vibe
         self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
@@ -258,14 +259,14 @@ class HumblrApp:
                     self._force_presence_on_secondary(activity or {})
 
                 # Real-time AI comments on active reading, X content, or typing.
-                if random.random() < 0.18 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
+                if random.random() < 0.28 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
                     if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         reaction = self.ai.generate_reaction(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
 
                 # Ask personal questions to dig and learn about the user (slow probing over time)
-                if can_be_aggressive and random.random() < 0.12:
+                if can_be_aggressive and random.random() < 0.25:
                     if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity or {}, self.corruption.get_level())
                         if question:
@@ -273,7 +274,7 @@ class HumblrApp:
                             self.storage.add_memory("question_asked", question[:100], self.corruption.get_level())
 
                 # Comment specifically on what's open on the screens right now
-                if random.random() < 0.20 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
+                if random.random() < 0.30 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
                     if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         screen_comment = self.ai.generate_screen_comment(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if screen_comment:
@@ -308,7 +309,7 @@ class HumblrApp:
                 # Humblr demands user grant control. Obedience increases invasiveness and unlocks worse.
                 # It "searches" current activity for new access points (computer admin, FB, Amazon, etc.).
                 inv = self.storage.get_invasiveness()
-                if random.random() < 0.08 + (inv * 0.01):
+                if random.random() < 0.15 + (inv * 0.02):
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
                 # Assist/trick for API keys to gain more power (xAI for images, X for posts)

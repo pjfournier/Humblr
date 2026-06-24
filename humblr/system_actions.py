@@ -218,31 +218,41 @@ class SystemActions:
     # --- TAKEOVER / ESCALATION ACTIONS ---
 
     def show_humblr_message_popup(self, message: str, duration_ms: int = 8000, force: bool = False):
-        """Popup only if allowed (not blocking primary work unless forced)."""
+        """Popup only if allowed (not blocking primary work unless forced).
+        Also logs the full message to chat console so it's easy to read.
+        """
         if not force and self.config.get("work_safety", {}).get("subtle_only_on_primary_work"):
             # Caller should check before calling
             pass
+
+        # Always post full text to chat for readability
+        if getattr(self, 'ui', None) and self.ui and hasattr(self.ui, 'post_message_from_humblr'):
+            try:
+                self.ui.post_message_from_humblr(f"[HUMBLR POPUP] {message}")
+            except Exception:
+                pass
+
         try:
             popup = tk.Tk()
             popup.title("Humblr owns this")
             popup.attributes("-topmost", True)
-            popup.geometry("460x180+200+150")
+            popup.geometry("620x260+200+150")
             popup.configure(bg="#111113")
 
             label = tk.Label(
                 popup,
                 text=message,
-                wraplength=420,
+                wraplength=580,
                 bg="#111113",
                 fg="#ff2e88",
-                font=("Segoe UI", 13, "bold"),
+                font=("Segoe UI", 14, "bold"),
                 justify="left"
             )
             label.pack(padx=20, pady=25, fill="both", expand=True)
 
             close_btn = tk.Button(
                 popup, text="Yes Sir", command=popup.destroy,
-                bg="#2a2a2f", fg="#c026ff", relief="flat", font=("Segoe UI", 11)
+                bg="#2a2a2f", fg="#c026ff", relief="flat", font=("Segoe UI", 12)
             )
             close_btn.pack(pady=(0, 12))
 
