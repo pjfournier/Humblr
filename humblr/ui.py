@@ -9,6 +9,8 @@ from tkinter import filedialog, messagebox
 from typing import Optional
 import threading
 import time
+import queue
+import queue
 
 
 class HumblrUI:
@@ -41,6 +43,18 @@ class HumblrUI:
 
         # Flag for safe cross-thread readiness checks (avoids Tk main-loop errors)
         self._ready = True
+
+        # Thread-safe queue for UI messages (posts from background threads)
+        self.ui_queue = queue.Queue()
+        # Start the queue processor on the main thread
+        if self.root:
+            self.root.after(100, self._process_ui_queue)
+
+        # Thread-safe queue for UI messages (posts from background threads)
+        self.ui_queue = queue.Queue()
+        # Start the queue processor on the main thread
+        if self.root:
+            self.root.after(100, self._process_ui_queue)
 
     def _build_ui(self):
         accent = self.config["ui"]["accent_color"]
@@ -124,13 +138,15 @@ class HumblrUI:
         t.start()
 
     def post_message_from_humblr(self, text: str):
-        # Thread-safe: always schedule on main UI thread via after().
-        # Never call winfo_exists() or other Tk calls from background threads.
-        if self.root:
+        # Thread-safe: put in queue. Main thread processes via _process_ui_queue.
+        # Safe from any thread. Always succeed in queuing or fallback print.
+        if self.root and getattr(self, '_ready', False):
             try:
-                self.root.after(0, lambda t=text: self._append_chat("Humblr", t, is_humblr=True))
+                self.ui_queue.put_nowait( ("Humblr", text) )
             except Exception:
-                print(f"[UI] post deferred failed: {text[:80]}...")
+                print(f"[UI] Humblr: {text[:80]}...")
+        else:
+            print(f"[UI] Humblr: {text[:80]}...")
 
     def _append_chat(self, speaker: str, text: str, is_humblr: bool = False):
         try:
@@ -143,6 +159,29 @@ class HumblrUI:
         except Exception:
             # Fallback print if UI broken
             print(f"[UI] {speaker}: {text[:120]}...")
+
+    def _process_ui_queue(self):
+        """Drain the queue on the main thread only. Called via after()."""
+        try:
+            while True:
+                try:
+                    item = self.ui_queue.get_nowait()
+                    if isinstance(item, tuple) and len(item) >= 2:
+                        speaker, text = item[0], item[1]
+                        is_humblr = (speaker == "Humblr")
+                        self._append_chat(speaker, text, is_humblr=is_humblr)
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    print(f"[UI] queue item error: {e}")
+        except Exception:
+            pass
+        # Reschedule if still alive
+        if self.root and getattr(self, '_ready', True):
+            try:
+                self.root.after(150, self._process_ui_queue)
+            except Exception:
+                pass
 
     def _send_message(self, event=None):
         text = self.user_input.get().strip()
@@ -232,16 +271,9 @@ class HumblrUI:
 
     def is_ready(self):
         """Safe check callable from any thread.
-        Prefers internal flag to avoid calling Tk from background threads.
+        Uses flag only - avoids any Tk calls from background threads.
         """
-        if getattr(self, '_ready', False) is False:
-            return False
-        if not self.root:
-            return False
-        try:
-            return bool(self.root.winfo_exists())
-        except Exception:
-            return getattr(self, '_ready', True)
+        return bool(getattr(self, '_ready', False) and self.root)
 
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)

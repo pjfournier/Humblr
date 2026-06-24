@@ -258,14 +258,14 @@ class HumblrApp:
 
                 # Real-time AI comments on active reading, X content, or typing.
                 if random.random() < 0.18 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
-                    if self.ui and self.ui.is_ready():
+                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         reaction = self.ai.generate_reaction(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
 
                 # Ask personal questions to dig and learn about the user (slow probing over time)
                 if can_be_aggressive and random.random() < 0.12:
-                    if self.ui and self.ui.is_ready():
+                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity or {}, self.corruption.get_level())
                         if question:
                             self.ui.post_message_from_humblr(question)
@@ -273,7 +273,7 @@ class HumblrApp:
 
                 # Comment specifically on what's open on the screens right now
                 if random.random() < 0.20 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
-                    if self.ui and self.ui.is_ready():
+                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         screen_comment = self.ai.generate_screen_comment(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if screen_comment:
                             self.ui.post_message_from_humblr(screen_comment)

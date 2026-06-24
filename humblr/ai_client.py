@@ -63,6 +63,9 @@ class AIClient:
 
     def update_key(self, new_key: str):
         """Called when user pastes a new xAI key so the AI starts using it immediately."""
+        new_key = (new_key or "").strip()
+        if new_key and not new_key.startswith("xai-"):
+            print("[AI] Warning: pasted key does not start with 'xai-'. Make sure it's a valid key from console.x.ai")
         self.api_key = new_key
         self._reload_client()
 
@@ -132,8 +135,8 @@ class AIClient:
         except Exception as e:
             err = str(e)
             print(f"[AI] Chat error: {err}")
-            if "401" in err or "authentication" in err.lower() or "invalid" in err.lower() and "key" in err.lower():
-                return "xAI Grok key problem detected (401/auth). Paste a valid fresh xai-... key in chat right now to wake me up."
+            if "incorrect api key" in err.lower() or ("invalid" in err.lower() and "key" in err.lower()) or "401" in err or "authentication" in err.lower():
+                return "xAI Grok key is invalid or incorrect. Get a fresh one from https://console.x.ai/ (must start with xai-) and paste it in chat."
             if "model" in err.lower() or "not found" in err.lower():
                 return f"Model '{self.model}' issue with xAI. Key may be ok but try re-pasting or check console."
             return self._fallback_reply(user_message, corruption)
