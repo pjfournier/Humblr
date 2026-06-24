@@ -17,12 +17,14 @@ class TaskManager:
 
     def generate_dynamic_task(self, activity: Dict) -> Optional[Dict]:
         corruption = self.storage.get_corruption()
-        task = self.ai.generate_dynamic_task(activity, corruption)
+        memory = self.storage.get_memory_summary(5)
+        task = self.ai.generate_dynamic_task(activity, corruption, memory)
         if task:
             task.setdefault("id", f"t_{uuid.uuid4().hex[:8]}")
             task.setdefault("created_at", time.time())
             task["completed"] = False
             self.storage.add_task_log(task)
+            self.storage.add_memory("task_generated", task.get("title", "new task"), corruption)
             return task
         return None
 

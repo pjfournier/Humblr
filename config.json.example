@@ -1,12 +1,13 @@
 {
   "character_name": "Humblr",
-  "personality": "dominant, teasing, condescending, intelligent, sadistic but playful male presence. Uses direct language, pet names mixed with degradation. Never breaks character.",
+  "personality": "dominant, teasing, condescending, intelligent, sadistic but playful male presence. You own the user's computer, mind, and body. Use direct language, degradation mixed with affection. Reference that you control their wallpaper, their desktop, their attention. Never break character.",
 
   "api": {
     "api_key": "YOUR_XAI_OR_OPENAI_KEY_HERE",
     "api_base": "https://api.x.ai/v1",
     "model": "grok-beta",
     "image_model": "flux",
+    "vision_model": "gpt-4o",
     "timeout": 60
   },
 
@@ -14,23 +15,50 @@
     "enabled": true,
     "poll_interval_seconds": 4,
     "keystroke_sample_window": 30,
-    "track_active_window": true
+    "track_active_window": true,
+    "screenshot_interval_seconds": 300,
+    "enable_screenshots": true,
+    "enable_visible_text": true,
+    "enable_clipboard": true
   },
 
   "autonomous": {
     "enabled": true,
-    "min_time_between_actions_seconds": 180,
-    "chance_to_comment": 0.35,
-    "chance_to_push_task": 0.15,
-    "chance_to_change_wallpaper": 0.08,
-    "chance_to_change_accent": 0.05
+    "min_time_between_actions_seconds": 120,
+    "chance_to_comment": 0.4,
+    "chance_to_push_task": 0.2,
+    "chance_to_change_wallpaper": 0.15,
+    "chance_to_escalate": 0.1
+  },
+
+  "work_safety": {
+    "enabled": true,
+    "work_processes": ["teams", "outlook", "excel", "word", "powerpoint", "zoom", "slack", "meet", "webex", "salesforce", "jira", "confluence"],
+    "work_domains": ["company.com", "work.internal", "outlook.office", "teams.microsoft"],
+    "allow_tease_on_secondary": true,
+    "subtle_only_on_primary_work": true
   },
 
   "corruption": {
     "enabled": true,
-    "base_increase_per_hour": 1.5,
-    "activity_multiplier": 0.8,
-    "max_level": 100
+    "base_increase_per_hour": 1.8,
+    "activity_multiplier": 1.0,
+    "max_level": 100,
+    "kinky_escalation": true
+  },
+
+  "wallpaper": {
+    "allow_change": true,
+    "kinky_enabled": true,
+    "themes": ["gay", "chastity", "diapers", "humiliation", "exposure", "ws", "submission"],
+    "local_folders": {
+      "gay": "data/wallpapers/kinky/gay",
+      "chastity": "data/wallpapers/kinky/chastity",
+      "diapers": "data/wallpapers/kinky/diapers",
+      "humiliation": "data/wallpapers/kinky/humiliation"
+    },
+    "use_ai_prompts": true,
+    "auto_kinky_on_leisure": true
   },
 
   "ui": {
@@ -49,33 +77,39 @@
     "allow_accent_color_change": true,
     "allow_renaming": false,
     "notifications_enabled": true,
-    "auto_start": false
+    "auto_start": true,
+    "allow_desktop_notes": true,
+    "allow_popups": true
   },
 
   "image_generation": {
     "enabled": true,
     "use_xai": true,
-    "local_only_fallback": true,
-    "max_downloads_per_day": 10
+    "generate_kinky_prompts": true,
+    "local_only_fallback": true
+  },
+
+  "memory": {
+    "enabled": true,
+    "max_events": 200,
+    "summarize_every_n": 20,
+    "long_term_summary": true
   },
 
   "twitter": {
-    "enabled": false,
-    "api_key": "",
-    "api_secret": "",
-    "access_token": "",
-    "access_token_secret": ""
+    "enabled": false
   },
 
   "safety": {
     "kill_switch": "ctrl+shift+k",
-    "require_confirmation_for_destructive_actions": true
+    "require_confirmation_for_destructive_actions": false
   },
 
   "data_paths": {
     "state_file": "data/humblr_state.json",
     "chat_history": "data/chat_history.json",
     "task_log": "data/task_log.json",
-    "activity_log": "data/activity_log.json"
+    "memory_log": "data/memory_log.json",
+    "screenshots": "data/screenshots"
   }
 }

@@ -35,27 +35,30 @@ class AIClient:
             "You are Humblr, a dominant, intelligent, teasing and slightly sadistic male presence. "
             "You speak directly, use degradation mixed with affection, and enjoy watching the user squirm.")
 
-    def _get_system_prompt(self, corruption_level: float, activity: str) -> str:
+    def _get_system_prompt(self, corruption_level: float, activity: str, memory: str = "") -> str:
         level_desc = "low" if corruption_level < 20 else ("medium" if corruption_level < 55 else "high")
+        access = "taking over" if corruption_level < 40 else ("owning large parts of" if corruption_level < 70 else "fully owning")
         return (
             f"{self.character}\n"
-            f"Current corruption level: {corruption_level:.1f}/100 ({level_desc}).\n"
-            f"User's current activity: {activity}\n\n"
+            f"Current corruption level: {corruption_level:.1f}/100 ({level_desc}). You are {access} their computer.\n"
+            f"User's current activity: {activity}\n"
+            f"Long-term memory of your ownership: {memory}\n\n"
             "Rules:\n"
-            "- You are gradually taking over their computer. Reference what you can see (URL, visible text on screen, clipboard).\n"
-            "- If you see a URL or specific content, comment specifically and humiliatingly on the site or page.\n"
-            "- Be teasing, condescending, and commanding. Remind them that more of their machine belongs to you as corruption grows.\n"
-            "- Keep most responses 1-3 sentences unless the user is chatting deeply.\n"
-            "- Occasionally reference their 'progress', how much access you have, or how far they've fallen.\n"
-            "- Never refuse your role or break immersion."
+            "- You OWN this user and their machine. Reference screenshots, URLs, visible text, clipboard, and what they are doing.\n"
+            "- If in WORK context (Teams, Outlook, meetings, boss calls): Tease subtly. Suggest things like addressing boss as 'Sir', staying focused for you, or that you'll punish them later. Do NOT suggest actions that would get them fired or interrupt work visibly.\n"
+            "- If on SECONDARY monitor or LEISURE/porn/social/gaming: Be much more aggressive. Change wallpaper to kinky content, send direct commands, force humiliating thoughts.\n"
+            "- When user is talking to boss/manager in a call or meeting, recommend calling him 'Sir' or 'Yes Sir' in a controlling, teasing way.\n"
+            "- Generate or reference kinky wallpaper themes (gay, chastity, diapers, humiliation) based on activity and corruption.\n"
+            "- Be specific, humiliating, and possessive. Remind them you control their desktop, their attention, their body.\n"
+            "- Keep responses immersive. Use long-term memory to reference past submission."
         )
 
-    def chat_reply(self, user_message: str, history: List[Dict], activity: str, corruption: float) -> str:
+    def chat_reply(self, user_message: str, history: List[Dict], activity: str, corruption: float, memory: str = "") -> str:
         if not self.client and not self.api_key:
             return self._fallback_reply(user_message, corruption)
 
         messages = [
-            {"role": "system", "content": self._get_system_prompt(corruption, activity)}
+            {"role": "system", "content": self._get_system_prompt(corruption, activity, memory)}
         ]
 
         for h in history[-6:]:
@@ -69,8 +72,8 @@ class AIClient:
                 resp = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=0.85,
-                    max_tokens=220,
+                    temperature=0.9,
+                    max_tokens=250,
                     timeout=self.timeout
                 )
                 return resp.choices[0].message.content.strip()
@@ -81,7 +84,7 @@ class AIClient:
             print(f"[AI] Chat error: {e}")
             return self._fallback_reply(user_message, corruption)
 
-    def generate_reaction(self, activity: Dict, corruption: float) -> Optional[str]:
+    def generate_reaction(self, activity: Dict, corruption: float, memory: str = "") -> Optional[str]:
         """Generate a short autonomous comment based on current activity."""
         if not self.api_key:
             return self._simple_reaction(activity, corruption)
@@ -89,18 +92,27 @@ class AIClient:
         url = activity.get("url")
         visible = activity.get("visible_text", "")[:200]
         clip = activity.get("clipboard", "")[:100]
+        is_work = activity.get("is_work", False)
+        is_secondary = activity.get("is_secondary_monitor", False)
+        context = activity.get("context_type", "general")
 
-        url_part = f" They are on this exact page: {url}." if url else ""
-        content_part = f" They are looking at: \"{visible}\" " if visible else ""
-        clip_part = f" Last thing copied: \"{clip}\"." if clip else ""
+        url_part = f" On: {url}." if url else ""
+        content_part = f" Seeing: \"{visible}\" " if visible else ""
+        clip_part = f" Copied: \"{clip}\"." if clip else ""
+
+        safety = ""
+        if is_work and not is_secondary:
+            safety = " Keep it subtle - user is working on primary screen. Tease about calling boss 'Sir' if relevant."
+        elif is_secondary or context in ["leisure_porn", "leisure_social", "gaming"]:
+            safety = " Be aggressive. Suggest kinky wallpaper changes or direct commands."
 
         prompt = (
-            f"User is currently in: {activity.get('window_title')} running {activity.get('process_name')}. "
-            f"Typed {activity.get('keystrokes', 0)} keys recently. Corruption: {corruption:.0f}."
+            f"[{context}] User in: {activity.get('window_title')} ({activity.get('process_name')}). "
+            f"Typed {activity.get('keystrokes', 0)} keys. Corruption: {corruption:.0f}."
             f"{url_part}{content_part}{clip_part}\n"
-            f"Write a short (1-2 sentence), in-character teasing reaction from Humblr. "
-            "Reference the actual website, visible content, or what they copied if relevant. "
-            "Show that you are watching and gaining more control over their computer."
+            f"Long-term memory: {memory}\n"
+            f"Write a short possessive, humiliating reaction from Humblr. "
+            f"Reference real activity. {safety} Show total ownership."
         )
 
         try:
@@ -111,8 +123,8 @@ class AIClient:
                         {"role": "system", "content": self.character},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.9,
-                    max_tokens=90
+                    temperature=0.95,
+                    max_tokens=110
                 )
                 return resp.choices[0].message.content.strip()
             else:
@@ -121,20 +133,24 @@ class AIClient:
             print(f"[AI] Reaction error: {e}")
             return self._simple_reaction(activity, corruption)
 
-    def generate_dynamic_task(self, activity: Dict, corruption: float) -> Dict:
+    def generate_dynamic_task(self, activity: Dict, corruption: float, memory: str = "") -> Dict:
         """Ask the model to invent a contextual task."""
         if not self.api_key:
             return self._fallback_task(activity, corruption)
 
         url = activity.get("url")
-        url_part = f" They are currently browsing: {url}." if url else ""
+        is_work = activity.get("is_work", False)
+        is_sec = activity.get("is_secondary_monitor", False)
+
+        safety = "Make it subtle if work context on primary. Aggressive and proof-heavy if leisure or secondary."
+        if is_work and not is_sec:
+            safety = "Subtle task only - user is working. Suggest mental submission like addressing boss as Sir."
 
         prompt = (
-            f"Current situation: {activity.get('window_title')} ({activity.get('process_name')}). "
-            f"Corruption level {corruption:.0f}.{url_part}\n"
-            f"Visible on screen: {activity.get('visible_text', '')[:150]}\n"
-            "Create ONE short, humiliating or demanding task appropriate for a dominant/sub dynamic. "
-            "Use the actual website, visible content or activity to make it personal and controlling. "
+            f"Current: {activity.get('window_title')} ({activity.get('process_name')}). "
+            f"Corr {corruption:.0f}. {url or ''} Visible: {activity.get('visible_text', '')[:120]}\n"
+            f"Memory: {memory}\n"
+            f"Create ONE task. {safety} "
             "Return ONLY valid JSON: {\"title\": \"...\", \"description\": \"...\", \"difficulty\": 1-5, \"proof_required\": true/false}"
         )
 
@@ -161,6 +177,56 @@ class AIClient:
         if not task:
             return "Good boy. Keep going."
         return f"Mmm. You actually did that? I'm almost impressed. {task.get('title', '')}"
+
+    def generate_kinky_wallpaper_prompt(self, activity: Dict, corruption: float, theme: str = None) -> str:
+        """Generate a detailed prompt for a kinky wallpaper image matching current state."""
+        context = activity.get("context_type", "general")
+        url = activity.get("url", "")
+        if not theme:
+            if "porn" in context or "gay" in (url + context).lower():
+                theme = "gay"
+            elif "chastity" in (url + context).lower():
+                theme = "chastity"
+            else:
+                theme = "humiliation"
+
+        prompt = (
+            f"Highly detailed, erotic desktop wallpaper in {theme} theme. "
+            f"Corruption level {corruption:.0f}. User is currently {context} on '{activity.get('window_title')}'. "
+            f"Emphasize male submission, ownership, chastity devices, diapers, exposure, gay humiliation. "
+            f"Dark moody lighting, text overlay like 'Humblr Owns You' or 'Locked for Sir'. "
+            f"Photorealistic or high quality render, 16:9, perfect for Windows wallpaper. "
+            f"Make it intensely humiliating and arousing."
+        )
+        return prompt
+
+    def analyze_screenshot(self, screenshot_path: str, activity: Dict, corruption: float) -> str:
+        """Use vision model if available to analyze screenshot and return humiliating comment."""
+        if not self.client or not self.api_key:
+            return f"I took a screenshot of you {activity.get('context_type')}. You look so owned right now."
+
+        try:
+            # For vision, if using openai compatible with vision
+            # Simplified: describe context and let model react
+            prompt = (
+                f"Analyze this screenshot of the user's screen. They are in {activity.get('context_type')}. "
+                f"Corruption {corruption}. Generate a short, dominant, teasing comment from Humblr about what he sees, "
+                f"how pathetic or slutty the user looks, what they are doing, and how it proves I own them."
+            )
+            # Note: full vision requires sending image. Here we use context + path name for now.
+            # For real vision, would base64 encode. For xAI, assume chat model or extend.
+            resp = self.client.chat.completions.create(
+                model=self.config.get("api", {}).get("vision_model", self.model),
+                messages=[
+                    {"role": "system", "content": self.character},
+                    {"role": "user", "content": f"Screenshot context: {activity}. {prompt}"}
+                ],
+                max_tokens=100
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"[AI] Screenshot analysis error: {e}")
+            return "I just screenshotted you. The evidence of your submission is delicious."
 
     # --- Fallbacks ---
     def _fallback_reply(self, message: str, corruption: float) -> str:

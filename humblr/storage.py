@@ -10,10 +10,12 @@ class Storage:
         self.state_path = Path(config["data_paths"]["state_file"])
         self.chat_path = Path(config["data_paths"]["chat_history"])
         self.task_path = Path(config["data_paths"]["task_log"])
+        self.memory_path = Path(config.get("data_paths", {}).get("memory_log", "data/memory_log.json"))
 
         self.state: Dict[str, Any] = {}
         self.chat_history: List[Dict] = []
         self.task_log: List[Dict] = []
+        self.memory_log: List[Dict] = []  # long term memory events
 
         self.load_all()
 
@@ -24,11 +26,13 @@ class Storage:
             "sessions": 0,
             "last_active": time.time(),
             "wallpaper_history": [],
-            "unlocked_features": []
+            "unlocked_features": [],
+            "long_term_summary": "Humblr has just started taking control. User is new to ownership."
         })
 
         self.chat_history = self._load_json(self.chat_path, [])
         self.task_log = self._load_json(self.task_path, [])
+        self.memory_log = self._load_json(self.memory_path, [])
 
     def _load_json(self, path: Path, default: Any):
         if path.exists():
@@ -48,6 +52,7 @@ class Storage:
         self._save_json(self.state_path, self.state)
         self._save_json(self.chat_path, self.chat_history[-200:])  # keep last 200
         self._save_json(self.task_path, self.task_log[-300:])
+        self._save_json(self.memory_path, self.memory_log[-self.config.get("memory", {}).get("max_events", 200):])
 
     # --- State helpers ---
     def get(self, key: str, default=None):
@@ -93,3 +98,37 @@ class Storage:
 
     def set_corruption(self, level: float):
         self.state["corruption_level"] = max(0, min(100, level))
+
+    # --- Long Term Memory ---
+    def add_memory(self, event_type: str, details: str, corruption: float = 0.0, metadata: Dict = None):
+        """Record a significant event for long-term ownership memory."""
+        event = {
+            "ts": time.time(),
+            "type": event_type,
+            "details": details[:300],
+            "corruption": round(corruption, 1),
+            "metadata": metadata or {}
+        }
+        self.memory_log.append(event)
+        # Keep bounded
+        max_events = self.config.get("memory", {}).get("max_events", 200)
+        if len(self.memory_log) > max_events:
+            self.memory_log = self.memory_log[-max_events:]
+        self._save_json(self.memory_path, self.memory_log)
+
+    def get_memory_summary(self, limit: int = 15) -> str:
+        """Return a concise long-term memory summary for AI prompts."""
+        if not self.memory_log:
+            return self.state.get("long_term_summary", "This is early in Humblr's ownership.")
+
+        recent = self.memory_log[-limit:]
+        summary_lines = []
+        for e in recent:
+            summary_lines.append(f"- [{e['type']}] {e['details']} (corr:{e['corruption']})")
+
+        base = self.state.get("long_term_summary", "")
+        return base + "\nRecent events:\n" + "\n".join(summary_lines)
+
+    def update_long_term_summary(self, new_summary: str):
+        self.state["long_term_summary"] = new_summary
+        self.save_all()

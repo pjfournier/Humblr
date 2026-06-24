@@ -63,6 +63,65 @@ class SystemActions:
         except Exception as e:
             print(f"[System] Wallpaper change failed: {e}")
 
+    def set_kinky_wallpaper(self, theme: str = None, ai_prompt: str = None):
+        """Aggressively set a kinky themed wallpaper. Prefers themed folders, falls back to prompt suggestion."""
+        if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
+            return self.cycle_wallpaper()
+
+        themes = self.config.get("wallpaper", {}).get("themes", [])
+        folders = self.config.get("wallpaper", {}).get("local_folders", {})
+
+        if theme and theme in folders:
+            folder = Path(folders[theme])
+            candidates = list(folder.glob("*.jpg")) + list(folder.glob("*.png"))
+            if candidates:
+                chosen = str(random.choice(candidates))
+                self._apply_wallpaper(chosen)
+                self.storage.add_memory("kinky_wallpaper", f"Switched to {theme} theme", self.storage.get_corruption())
+                return
+
+        # Try any kinky subfolder
+        kinky_root = Path("data/wallpapers/kinky")
+        for sub in kinky_root.iterdir():
+            if sub.is_dir():
+                cands = list(sub.glob("*.jpg")) + list(sub.glob("*.png"))
+                if cands:
+                    chosen = str(random.choice(cands))
+                    self._apply_wallpaper(chosen)
+                    self.storage.add_memory("kinky_wallpaper", f"Applied random kinky from {sub.name}", self.storage.get_corruption())
+                    return
+
+        # Fallback: use prompt or general
+        if ai_prompt:
+            self.notify("Humblr", f"Use this kinky prompt in your image generator: {ai_prompt[:150]}...")
+        self.cycle_wallpaper()
+
+    def _apply_wallpaper(self, path: str):
+        try:
+            SPI = 0x0014
+            ctypes.windll.user32.SystemParametersInfoW(SPI, 0, path, 3)
+            self.notify("Humblr", "I changed your wallpaper to something that reminds you who owns you.")
+            print(f"[System] Kinky wallpaper: {path}")
+        except Exception as e:
+            print(f"[System] Kinky wallpaper failed: {e}")
+
+    def take_screenshot(self, context: str = "auto_analysis") -> Optional[str]:
+        """Take screenshot using monitor or pyautogui."""
+        # Delegate to monitor if possible, but simple here too
+        try:
+            import pyautogui
+            screenshots_dir = Path(self.config.get("data_paths", {}).get("screenshots", "data/screenshots"))
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
+            ts = int(time.time())
+            path = screenshots_dir / f"{context}_{ts}.png"
+            img = pyautogui.screenshot()
+            img.save(str(path))
+            self.storage.add_memory("screenshot", f"Auto screenshot taken during {context}", self.storage.get_corruption())
+            return str(path)
+        except Exception as e:
+            print(f"[System] Screenshot error: {e}")
+            return None
+
     def change_accent_color(self):
         if not self.config.get("system", {}).get("allow_accent_color_change"):
             return
@@ -118,31 +177,34 @@ class SystemActions:
 
     # --- TAKEOVER / ESCALATION ACTIONS ---
 
-    def show_humblr_message_popup(self, message: str, duration_ms: int = 8000):
-        """Show a simple always-on-top popup that feels like Humblr is speaking directly."""
+    def show_humblr_message_popup(self, message: str, duration_ms: int = 8000, force: bool = False):
+        """Popup only if allowed (not blocking primary work unless forced)."""
+        if not force and self.config.get("work_safety", {}).get("subtle_only_on_primary_work"):
+            # Caller should check before calling
+            pass
         try:
             popup = tk.Tk()
-            popup.title("Humblr")
+            popup.title("Humblr owns this")
             popup.attributes("-topmost", True)
-            popup.geometry("420x160+300+200")
-            popup.configure(bg="#1a1a1f")
+            popup.geometry("460x180+200+150")
+            popup.configure(bg="#111113")
 
             label = tk.Label(
                 popup,
                 text=message,
-                wraplength=380,
-                bg="#1a1a1f",
-                fg="#c026ff",
-                font=("Segoe UI", 12, "bold"),
+                wraplength=420,
+                bg="#111113",
+                fg="#ff2e88",
+                font=("Segoe UI", 13, "bold"),
                 justify="left"
             )
-            label.pack(padx=15, pady=20, fill="both", expand=True)
+            label.pack(padx=20, pady=25, fill="both", expand=True)
 
             close_btn = tk.Button(
-                popup, text="Dismiss", command=popup.destroy,
-                bg="#2a2a2f", fg="#ff2e88", relief="flat"
+                popup, text="Yes Sir", command=popup.destroy,
+                bg="#2a2a2f", fg="#c026ff", relief="flat", font=("Segoe UI", 11)
             )
-            close_btn.pack(pady=(0, 10))
+            close_btn.pack(pady=(0, 12))
 
             popup.after(duration_ms, popup.destroy)
             popup.mainloop()

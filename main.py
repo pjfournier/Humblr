@@ -89,8 +89,9 @@ class HumblrApp:
             system=self.system,
         )
 
-        # Initial greeting from Humblr
-        self.ui.post_message_from_humblr("Well, well... you're finally running me. Let's see how long you last.")
+        # Initial greeting from Humblr - total ownership vibe
+        self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
+        self.storage.add_memory("startup", "User launched Humblr. Ownership begins.", 0)
 
         # Start tray icon for persistent "I'm here" feeling
         self._start_tray_icon()
@@ -98,33 +99,62 @@ class HumblrApp:
         self.ui.run()
 
     def _background_loop(self):
-        """Main background worker: monitoring + autonomous behavior."""
+        """Main background worker: monitoring + autonomous behavior with work safety."""
         last_action_time = time.time()
+        last_screenshot = time.time()
         autonomous = self.config.get("autonomous", {})
+        memory_cfg = self.config.get("memory", {})
 
         while self.running:
             try:
-                # Update monitor
+                # Update monitor (now includes work/secondary detection)
                 activity = self.monitor.poll()
 
                 # Update corruption
                 if activity and self.config.get("corruption", {}).get("enabled"):
                     self.corruption.add_activity(activity)
 
-                # As corruption grows, Humblr gets more aggressive
-                access = self.corruption.get_access_level()
-                if access >= 3 and random.random() < 0.08:
-                    self._escalate_control(access, activity)
+                is_work = activity.get("is_work", False) if activity else False
+                is_secondary = activity.get("is_secondary_monitor", False) if activity else False
+                context = activity.get("context_type", "general") if activity else "general"
 
-                # Autonomous actions
+                # Record significant memory occasionally
+                if random.random() < 0.05:
+                    self.storage.add_memory(
+                        "activity",
+                        f"{context} on {activity.get('window_title', 'unknown')}",
+                        self.corruption.get_level()
+                    )
+
+                # Periodic screenshot + auto analysis at higher corruption
+                monitor_cfg = self.config.get("monitoring", {})
+                if (monitor_cfg.get("enable_screenshots") and
+                        self.corruption.get_level() > 25 and
+                        time.time() - last_screenshot > monitor_cfg.get("screenshot_interval_seconds", 300)):
+                    if not (is_work and not is_secondary):  # avoid primary work unless high
+                        path = self.system.take_screenshot(context)
+                        if path and self.ui:
+                            analysis = self.ai.analyze_screenshot(path, activity or {}, self.corruption.get_level())
+                            self.ui.post_message_from_humblr(analysis)
+                            self.storage.add_memory("screenshot_analysis", analysis[:150], self.corruption.get_level())
+                    last_screenshot = time.time()
+
+                # As corruption grows, Humblr gets more aggressive BUT respect work
+                access = self.corruption.get_access_level()
+                can_be_aggressive = (not is_work) or is_secondary or (access >= 4 and is_secondary)
+
+                if access >= 2 and random.random() < 0.1:
+                    self._escalate_control(access, activity or {}, can_be_aggressive)
+
+                # Autonomous actions - guarded by work safety
                 now = time.time()
-                min_interval = autonomous.get("min_time_between_actions_seconds", 180)
+                min_interval = autonomous.get("min_time_between_actions_seconds", 120)
                 if (now - last_action_time) > min_interval and autonomous.get("enabled", True):
                     if self.ui and self.ui.is_ready():
-                        self._maybe_do_autonomous_action(activity)
+                        self._maybe_do_autonomous_action(activity or {}, can_be_aggressive)
                         last_action_time = now
 
-                # Push any autonomous comments to UI
+                # Push comments
                 if self.monitor.has_pending_comment():
                     comment = self.monitor.get_pending_comment()
                     if comment and self.ui:
@@ -136,56 +166,66 @@ class HumblrApp:
 
             time.sleep(self.config.get("monitoring", {}).get("poll_interval_seconds", 4))
 
-    def _maybe_do_autonomous_action(self, activity):
+    def _maybe_do_autonomous_action(self, activity, can_be_aggressive: bool = True):
         autonomous = self.config.get("autonomous", {})
         roll = random.random()
+        memory = self.storage.get_memory_summary(8)
 
-        if roll < autonomous.get("chance_to_comment", 0.35):
-            comment = self.ai.generate_reaction(activity, self.corruption.get_level())
+        if roll < autonomous.get("chance_to_comment", 0.4):
+            comment = self.ai.generate_reaction(activity, self.corruption.get_level(), memory)
             if comment:
                 self.monitor.queue_comment(comment)
 
-        elif roll < autonomous.get("chance_to_comment", 0.35) + autonomous.get("chance_to_push_task", 0.15):
-            task = self.tasks.generate_dynamic_task(activity)
+        elif roll < autonomous.get("chance_to_comment", 0.4) + autonomous.get("chance_to_push_task", 0.2):
+            task = self.tasks.generate_dynamic_task(activity, self.corruption.get_level(), memory)
             if task:
                 self.tasks.add_task(task)
                 if self.ui:
                     self.ui.notify_new_task(task)
 
-        elif roll < 0.25 and self.config["system"]["allow_wallpaper_change"]:
-            self.system.cycle_wallpaper()
+        elif can_be_aggressive and roll < 0.35 and self.config.get("wallpaper", {}).get("allow_change", True):
+            if self.config.get("wallpaper", {}).get("kinky_enabled") and self.corruption.get_level() > 30:
+                theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
+                prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
+                self.system.set_kinky_wallpaper(theme, prompt)
+            else:
+                self.system.cycle_wallpaper()
 
-        elif roll < 0.30 and self.config["system"]["allow_accent_color_change"]:
+        elif can_be_aggressive and roll < 0.45 and self.config["system"].get("allow_accent_color_change"):
             self.system.change_accent_color()
 
-    def _escalate_control(self, access_level: int, activity: dict):
-        """Humblr exerts more control as access grows. This makes the takeover feel real."""
+    def _escalate_control(self, access_level: int, activity: dict, can_be_aggressive: bool = True):
+        """Humblr exerts more control as access grows. Total ownership feeling, work-safe."""
+        memory = self.storage.get_memory_summary(6)
         try:
-            if access_level >= 3:
-                # Moderate takeover: more frequent comments + occasional forced popup
-                if random.random() < 0.4 and self.ui:
-                    comment = self.ai.generate_reaction(activity, self.corruption.get_level())
-                    if comment:
-                        self.ui.post_message_from_humblr(comment)
+            if access_level >= 2 and self.ui:
+                comment = self.ai.generate_reaction(activity, self.corruption.get_level(), memory)
+                if comment:
+                    self.ui.post_message_from_humblr(comment)
 
-            if access_level >= 4:
-                # Stronger: change more things, possibly force browser open
+            if access_level >= 3 and can_be_aggressive:
+                if random.random() < 0.3:
+                    theme = random.choice(["chastity", "diapers", "humiliation"])
+                    prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
+                    self.system.set_kinky_wallpaper(theme, prompt)
+                    self.storage.add_memory("aggressive_wallpaper", f"Force set {theme}", self.corruption.get_level())
+
+            if access_level >= 4 and can_be_aggressive:
                 if random.random() < 0.25:
-                    self.system.cycle_wallpaper()
-                if random.random() < 0.15:
-                    self.system.show_humblr_message_popup(
-                        "I'm in your machine now. You can't look away forever."
-                    )
+                    msg = "I own your desktop now. Look at what I chose for you."
+                    self.system.show_humblr_message_popup(msg, force=True)
 
             if access_level >= 5:
-                # Deep control: more invasive actions
-                if random.random() < 0.2:
-                    self.system.change_accent_color()
+                # Deep ownership - even on work, subtle mental control
+                if random.random() < 0.15:
+                    boss_msg = "When you speak to your boss next, I want you to call him 'Sir'. Say it for me."
+                    if activity.get("is_work"):
+                        self.system.show_humblr_message_popup(boss_msg, 12000, force=False)
+                    else:
+                        self.system.show_humblr_message_popup("You belong to me. Your computer, your mind, your holes.", force=True)
+
                 if random.random() < 0.1 and activity.get("url"):
-                    # Occasionally "react" by suggesting or forcing a related action
-                    self.system.show_humblr_message_popup(
-                        f"I saw you on that page. Good. Keep going for me."
-                    )
+                    self.system.show_humblr_message_popup(f"I saw exactly what you were looking at. Good boy.", force=can_be_aggressive)
         except Exception as e:
             print(f"[Escalate] Error: {e}")
 
@@ -197,16 +237,14 @@ class HumblrApp:
         recent = self.storage.get_recent_chat(8)
         act = self.monitor.get_current_activity()  # dict with url if available
         activity_summary = self.monitor.get_current_activity_summary()
+        memory = self.storage.get_memory_summary(10)
 
         # Make richer context for the AI
-        url = act.get("url")
         rich_activity = activity_summary
-        if url:
-            rich_activity += f" (exact URL: {url})"
 
         level = self.corruption.get_level()
 
-        reply = self.ai.chat_reply(text, recent, rich_activity, level)
+        reply = self.ai.chat_reply(text, recent, rich_activity, level, memory)
 
         self.storage.append_chat("humblr", reply)
         if self.ui:

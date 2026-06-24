@@ -39,6 +39,12 @@ if not exist config.json (
 if not exist data (
     mkdir data
     mkdir data\wallpapers
+    mkdir data\wallpapers\kinky
+    mkdir data\wallpapers\kinky\gay
+    mkdir data\wallpapers\kinky\chastity
+    mkdir data\wallpapers\kinky\diapers
+    mkdir data\wallpapers\kinky\humiliation
+    mkdir data\screenshots
     mkdir logs
 )
 

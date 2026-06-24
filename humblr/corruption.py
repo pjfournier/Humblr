@@ -70,7 +70,11 @@ class CorruptionEngine:
         if activity.get("task_completed"):
             score += activity["task_completed"]
 
+        old_level = self.get_level()
         new_level = self.get_level() + score
         max_level = cfg.get("max_level", 100)
         self.storage.set_corruption(min(new_level, max_level))
         self.storage.set("last_active", time.time())
+
+        if int(new_level / 10) > int(old_level / 10):
+            self.storage.add_memory("corruption_milestone", f"Corruption reached {int(new_level)}", new_level)

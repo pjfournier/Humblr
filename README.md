@@ -67,9 +67,11 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 ## Quick Start
 
 1. Clone or download this repo into `Documents\GitHub\Humblr`
-2. Run `setup.bat` (first time only) — re-run it if you pulled updates that added new dependencies like `uiautomation`
-3. Edit `config.json`
+2. Run `setup.bat` (first time only) — **re-run it after updates** (new deps: uiautomation, pyperclip, pystray, pyautogui)
+3. Edit `config.json` (add your xAI/OpenAI key)
 4. Run `run.bat` or `python main.py`
+
+The more you use it, the more Humblr will know about what you're doing and start acting on its own.
 
 ## Configuration (`config.json`)
 

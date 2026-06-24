@@ -9,13 +9,16 @@ from typing import Dict, Optional, Any
 from collections import deque
 
 import psutil
+import time
 
 try:
     import win32gui
     import win32process
+    import win32api
 except ImportError:
     win32gui = None
     win32process = None
+    win32api = None
 
 try:
     from pynput import keyboard
@@ -31,6 +34,11 @@ try:
     import pyperclip
 except ImportError:
     pyperclip = None
+
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
 
 
 
@@ -84,6 +92,11 @@ class ActivityMonitor:
         activity["timestamp"] = time.time()
         activity["visible_text"] = self._extract_visible_text_snippet(activity.get("window_title", ""))
         activity["clipboard"] = self._get_clipboard_snippet()
+
+        # Work safety and monitor detection
+        activity["is_work"] = self._is_work_context(activity)
+        activity["is_secondary_monitor"] = self._is_on_secondary_monitor()
+        activity["context_type"] = self._classify_context(activity)
 
         with self._lock:
             self.current_activity = activity
@@ -289,16 +302,19 @@ class ActivityMonitor:
         url = act.get("url")
         visible = act.get("visible_text", "")[:150]
         clip = act.get("clipboard", "")[:80]
+        context = act.get("context_type", "general")
+        work_flag = "WORK" if act.get("is_work") else "LEISURE"
+        monitor = "SECONDARY" if act.get("is_secondary_monitor") else "PRIMARY"
 
-        base = (f"Active window: \"{act.get('window_title', '?')}\" "
+        base = (f"[{work_flag}/{monitor}/{context}] Active: \"{act.get('window_title', '?')}\" "
                 f"({act.get('process_name', '?')}) — {ks} keys")
 
         if url:
             short_url = url[:65] + "..." if len(url) > 65 else url
-            base += f"\nOn page: {short_url}"
+            base += f"\nURL: {short_url}"
 
         if visible:
-            base += f"\nSeeing: {visible}..."
+            base += f"\nVisible: {visible}..."
 
         if clip:
             base += f"\nClipboard: {clip}..."
@@ -324,4 +340,83 @@ class ActivityMonitor:
         """Return a copy of the latest activity dict (includes url when available)."""
         with self._lock:
             return self.current_activity.copy()
+
+    def _is_work_context(self, activity: Dict) -> bool:
+        """Detect if user is in a work context (should limit aggression)."""
+        work_procs = self.config.get("work_safety", {}).get("work_processes", [])
+        work_domains = self.config.get("work_safety", {}).get("work_domains", [])
+
+        proc = (activity.get("process_name") or "").lower()
+        title = (activity.get("window_title") or "").lower()
+        url = (activity.get("url") or "").lower()
+
+        for p in work_procs:
+            if p in proc or p in title:
+                return True
+
+        for d in work_domains:
+            if d in url:
+                return True
+
+        # Boss / meeting detection
+        if any(x in title for x in ["boss", "manager", "director", "call with", "meeting with", "1:1"]):
+            return True
+
+        return False
+
+    def _is_on_secondary_monitor(self) -> bool:
+        """Check if the foreground window is primarily on a secondary monitor."""
+        if win32gui is None or win32api is None:
+            return False
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+            # Get all monitors
+            monitors = win32api.EnumDisplayMonitors(None, None)
+            if len(monitors) <= 1:
+                return False  # only primary
+
+            # Find which monitor the window center is on
+            cx = (left + right) // 2
+            cy = (top + bottom) // 2
+
+            primary = monitors[0][2]  # (left, top, right, bottom)
+            for i, m in enumerate(monitors):
+                ml, mt, mr, mb = m[2]
+                if ml <= cx <= mr and mt <= cy <= mb:
+                    return i != 0  # not primary
+            return False
+        except Exception:
+            return False
+
+    def _classify_context(self, activity: Dict) -> str:
+        title = (activity.get("window_title") or "").lower()
+        proc = (activity.get("process_name") or "").lower()
+        url = (activity.get("url") or "").lower()
+
+        if any(x in title + proc for x in ["porn", "onlyfans", "chaturbate", "xvideos", "pornhub", "reddit.com/r/"]):
+            return "leisure_porn"
+        if any(x in url for x in ["reddit", "twitter", "x.com", "instagram", "tiktok", "youtube"]):
+            return "leisure_social"
+        if any(x in proc for x in ["game", "steam", "discord"]):
+            return "gaming"
+        if activity.get("is_work"):
+            return "work"
+        return "general"
+
+    def take_screenshot(self, context: str = "auto") -> Optional[str]:
+        """Capture screenshot for analysis or proof. Returns path or None."""
+        if pyautogui is None:
+            return None
+        try:
+            screenshots_dir = Path(self.config.get("data_paths", {}).get("screenshots", "data/screenshots"))
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = int(time.time())
+            path = screenshots_dir / f"screenshot_{context}_{timestamp}.png"
+            screenshot = pyautogui.screenshot()
+            screenshot.save(str(path))
+            return str(path)
+        except Exception as e:
+            print(f"[Monitor] Screenshot failed: {e}")
+            return None
 
