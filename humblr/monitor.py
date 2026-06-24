@@ -22,6 +22,12 @@ try:
 except ImportError:
     keyboard = None
 
+try:
+    import uiautomation as auto
+except ImportError:
+    auto = None
+
+
 
 class ActivityMonitor:
     def __init__(self, config: Dict, storage):
@@ -32,6 +38,7 @@ class ActivityMonitor:
         self.current_activity = {
             "window_title": "Unknown",
             "process_name": "Unknown",
+            "url": None,
             "keystrokes_last_window": 0,
         }
 
@@ -78,7 +85,7 @@ class ActivityMonitor:
 
     def _get_active_window(self) -> Dict[str, str]:
         if win32gui is None:
-            return {"window_title": "N/A (no pywin32)", "process_name": "N/A"}
+            return {"window_title": "N/A (no pywin32)", "process_name": "N/A", "url": None}
 
         try:
             hwnd = win32gui.GetForegroundWindow()
@@ -87,16 +94,104 @@ class ActivityMonitor:
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             try:
                 proc = psutil.Process(pid)
-                name = proc.name()
+                name = proc.name().lower()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 name = "unknown.exe"
 
+            url = None
+            if auto is not None and any(b in name for b in ['chrome', 'msedge', 'firefox', 'brave', 'opera']):
+                url = self._try_get_browser_url(hwnd, name)
+
             return {
                 "window_title": title[:120],
-                "process_name": name
+                "process_name": name,
+                "url": url
             }
         except Exception:
-            return {"window_title": "Error reading window", "process_name": "unknown"}
+            return {"window_title": "Error reading window", "process_name": "unknown", "url": None}
+
+    def _try_get_browser_url(self, hwnd, process_name: str) -> Optional[str]:
+        """Attempt to read the current URL from the browser's address bar using UI Automation."""
+        if auto is None:
+            return None
+
+        try:
+            # Get the window control from handle
+            window = auto.ControlFromHandle(hwnd)
+            if not window.Exists(0, 0):
+                return None
+
+            # Common strategies for Chromium-based browsers (Chrome, Edge, Brave, Opera)
+            if any(b in process_name for b in ['chrome', 'msedge', 'brave', 'opera']):
+                # Strategy 1: Look for the omnibox / address bar edit control
+                address = window.EditControl(ClassName='Chrome_OmniboxView')
+                if address.Exists(0.2, 0):
+                    value = address.GetValuePattern().Value
+                    if value and (value.startswith('http') or value.startswith('chrome') or value.startswith('edge')):
+                        return value.strip()
+
+                # Strategy 2: Search more broadly in the toolbar area
+                try:
+                    toolbar = window.ToolbarControl(searchDepth=5)
+                    if toolbar.Exists(0.2, 0):
+                        edit = toolbar.EditControl()
+                        if edit.Exists(0.1, 0):
+                            val = edit.GetValuePattern().Value
+                            if val and val.startswith(('http', 'https', 'www.')):
+                                return val.strip()
+                except Exception:
+                    pass
+
+                # Strategy 3: Find by AutomationId or Name containing "address"
+                try:
+                    addr = window.FindFirst(searchDepth=8,
+                                            condition=auto.ControlCondition(
+                                                lambda c: 'address' in (c.Name or '').lower() or
+                                                          'omnibox' in (c.ClassName or '').lower() or
+                                                          c.LocalizedControlType == 'edit'
+                                            ))
+                    if addr and addr.Exists(0.1, 0):
+                        val = addr.GetValuePattern().Value if addr.IsValuePatternAvailable() else None
+                        if val and val.startswith('http'):
+                            return val.strip()
+                except Exception:
+                    pass
+
+            # Firefox
+            if 'firefox' in process_name:
+                try:
+                    # Firefox uses different class names
+                    url_bar = window.EditControl(Name='Search with Google or enter address')
+                    if not url_bar.Exists(0.2, 0):
+                        url_bar = window.EditControl(AutomationId='urlbar-input')
+                    if url_bar.Exists(0.2, 0):
+                        val = url_bar.GetValuePattern().Value
+                        if val and val.startswith('http'):
+                            return val.strip()
+                except Exception:
+                    pass
+
+            # Last resort: try to find any visible Edit control that looks like a URL in the top part of the window
+            try:
+                edits = window.FindAll(searchDepth=6, condition=auto.ControlCondition(
+                    lambda c: c.LocalizedControlType in ('edit', 'text') and c.IsVisible
+                ))
+                for edit in edits[:5]:
+                    try:
+                        val = edit.GetValuePattern().Value
+                        if val and val.startswith(('http://', 'https://')):
+                            return val.strip()
+                    except:
+                        continue
+            except Exception:
+                pass
+
+        except Exception as e:
+            # Silent fail - UIA can be fragile
+            pass
+
+        return None
+
 
     def _count_keystrokes_in_window(self) -> int:
         window_sec = self.config.get("monitoring", {}).get("keystroke_sample_window", 25)
@@ -115,8 +210,15 @@ class ActivityMonitor:
     def get_current_activity_summary(self) -> str:
         act = self.current_activity
         ks = act.get("keystrokes", 0)
-        return (f"Active window: \"{act.get('window_title', '?')}\" "
+        url = act.get("url")
+        base = (f"Active window: \"{act.get('window_title', '?')}\" "
                 f"({act.get('process_name', '?')}) — {ks} keys in last window")
+        if url:
+            # Show a clean version of the URL
+            short_url = url[:70] + "..." if len(url) > 70 else url
+            base += f" | URL: {short_url}"
+        return base
+
 
     def queue_comment(self, text: str):
         with self._lock:
@@ -131,3 +233,9 @@ class ActivityMonitor:
             c = self._pending_comment
             self._pending_comment = None
             return c
+
+    def get_current_activity(self) -> Dict[str, Any]:
+        """Return a copy of the latest activity dict (includes url when available)."""
+        with self._lock:
+            return self.current_activity.copy()
+

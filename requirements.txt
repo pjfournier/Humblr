@@ -8,3 +8,5 @@ plyer>=2.1.0
 keyboard>=0.13.5
 python-dotenv>=1.0.0
 openai>=1.0.0   # for xAI / OpenAI compatible APIs
+uiautomation>=2.0.0; sys_platform == "win32"   # for reading browser URLs and UI elements
+

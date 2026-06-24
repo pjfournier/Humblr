@@ -149,10 +149,18 @@ class HumblrApp:
 
         # Get context
         recent = self.storage.get_recent_chat(8)
-        activity = self.monitor.get_current_activity_summary()
+        act = self.monitor.get_current_activity()  # dict with url if available
+        activity_summary = self.monitor.get_current_activity_summary()
+
+        # Make richer context for the AI
+        url = act.get("url")
+        rich_activity = activity_summary
+        if url:
+            rich_activity += f" (exact URL: {url})"
+
         level = self.corruption.get_level()
 
-        reply = self.ai.chat_reply(text, recent, activity, level)
+        reply = self.ai.chat_reply(text, recent, rich_activity, level)
 
         self.storage.append_chat("humblr", reply)
         if self.ui:

@@ -13,7 +13,7 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 
 ## Features
 
-- Real-time monitoring: active window title, process name, typing volume / keystroke rate
+- Real-time monitoring: active window title, process name, **current website URL** (in Chrome/Edge/Firefox/Brave), typing volume / keystroke rate
 - Dynamic, contextual comments and reactions based on what you're doing
 - AI-powered chat with Humblr (dominant personality) using xAI / OpenAI compatible APIs
 - Dynamic task generation with real submission themes (with proof requirements)
@@ -33,6 +33,8 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 
 1. **Antivirus / Security software will likely flag this.**  
    Keylogging + system modification behavior looks exactly like malware. You may need to add exclusions.
+
+2. **Browser URL reading** uses UI Automation. It can see the exact URL of the website/tab you have focused (including porn, work sites, social media, etc.). This is intentionally invasive. Some security software or browser protections may block or slow it down.
 
 2. **It makes permanent(ish) changes to your computer.**  
    Wallpaper, colors, file names. Have a restore plan.

@@ -43,7 +43,7 @@ class AIClient:
             f"User's current activity: {activity}\n\n"
             "Rules:\n"
             "- Stay completely in character as Humblr.\n"
-            "- Be specific about what the user is doing based on window titles and typing speed.\n"
+            "- If you see a URL, comment specifically on the site or page they are on (e.g. Reddit, Pornhub, work tools, Twitter, etc.).\n"
             "- Be teasing, condescending, and commanding.\n"
             "- Keep most responses 1-3 sentences unless the user is chatting deeply.\n"
             "- Occasionally reference their 'progress' or how far they've fallen.\n"
@@ -86,10 +86,15 @@ class AIClient:
         if not self.api_key:
             return self._simple_reaction(activity, corruption)
 
+        url = activity.get("url")
+        url_part = f" They are on this exact page: {url}" if url else ""
+
         prompt = (
             f"User is currently in: {activity.get('window_title')} running {activity.get('process_name')}. "
-            f"Typed {activity.get('keystrokes', 0)} keys recently. Corruption: {corruption:.0f}.\n"
-            f"Write a short (1-2 sentence), in-character teasing reaction from Humblr. Be specific."
+            f"Typed {activity.get('keystrokes', 0)} keys recently. Corruption: {corruption:.0f}."
+            f"{url_part}\n"
+            f"Write a short (1-2 sentence), in-character teasing reaction from Humblr. "
+            "If you have the URL, reference the actual website or page they are browsing. Be specific and humiliating."
         )
 
         try:
@@ -115,10 +120,14 @@ class AIClient:
         if not self.api_key:
             return self._fallback_task(activity, corruption)
 
+        url = activity.get("url")
+        url_part = f" They are currently browsing: {url}." if url else ""
+
         prompt = (
             f"Current situation: {activity.get('window_title')} ({activity.get('process_name')}). "
-            f"Corruption level {corruption:.0f}.\n"
+            f"Corruption level {corruption:.0f}.{url_part}\n"
             "Create ONE short, humiliating or demanding task appropriate for a dominant/sub dynamic. "
+            "If they are on a specific website, make the task reference that site or activity. "
             "Return ONLY valid JSON: {\"title\": \"...\", \"description\": \"...\", \"difficulty\": 1-5, \"proof_required\": true/false}"
         )
 
@@ -153,6 +162,9 @@ class AIClient:
 
     def _simple_reaction(self, activity: Dict, corruption: float) -> str:
         title = activity.get("window_title", "something boring")
+        url = activity.get("url")
+        if url:
+            return f"I see you're on {url}. How predictable... and pathetic."
         return f"Still staring at \"{title[:40]}\"... and you wonder why I own you now."
 
     def _fallback_task(self, activity: Dict, corruption: float) -> Dict:
