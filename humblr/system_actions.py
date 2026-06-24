@@ -504,11 +504,11 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                     pass
 
             # Live reload xAI client so chat/reactions work immediately without restart
-            if key_type == "xai" and hasattr(self, 'app') and self.app and hasattr(self.app, 'ai'):
+            if key_type == "xai" and hasattr(self, 'ai') and self.ai:
                 try:
-                    self.app.ai.update_key(key_value)
+                    self.ai.update_key(key_value)
                     # One-time confirmation test
-                    ok, msg = self.app.ai.test_key()
+                    ok, msg = self.ai.test_key()
                     if ok:
                         self.notify("Humblr", msg)
                     else:

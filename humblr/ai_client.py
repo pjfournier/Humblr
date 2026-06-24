@@ -33,7 +33,9 @@ class AIClient:
         self.timeout = api_cfg.get("timeout", 50)
 
         self.client = None
-        if self.api_key and OpenAI:
+        if not OpenAI:
+            print("[AI] WARNING: 'openai' package not found. Install with: pip install openai (required for Grok API)")
+        elif self.api_key:
             try:
                 self.client = OpenAI(
                     api_key=self.api_key,
@@ -50,7 +52,11 @@ class AIClient:
         self._reload_client()
 
     def _reload_client(self):
-        if self.api_key and OpenAI:
+        if not OpenAI:
+            print("[AI] ERROR: 'openai' package not installed. This app uses it to talk to Grok. Run: pip install openai")
+            self.client = None
+            return
+        if self.api_key:
             try:
                 self.client = OpenAI(
                     api_key=self.api_key,

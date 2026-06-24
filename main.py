@@ -60,6 +60,7 @@ class HumblrApp:
         self.tasks = TaskManager(self.config, self.storage, self.ai)
         self.system = SystemActions(self.config, self.storage)
         self.system.ai = self.ai  # allow direct AI image gen calls from UI/system
+        self.system.app = self  # for config/key updates to reach ai
 
         self.ui = None
         self.running = True

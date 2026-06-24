@@ -194,8 +194,9 @@ class HumblrUI:
         if text.startswith("xai-") and len(text) > 20:
             if hasattr(self.app, 'system'):
                 self.app.system.update_config_with_key("xai", text)
-                # One-time test + confirmation
+                # Ensure ai gets the key even if system path missed it
                 if hasattr(self.app, 'ai'):
+                    self.app.ai.update_key(text)
                     success, msg = self.app.ai.test_key()
                     self.post_message_from_humblr(msg)
                     if not success:
@@ -478,14 +479,12 @@ class HumblrUI:
             key = dialog.get_input()
             if key and len(key) > 10:
                 success = self.app.system.update_config_with_key("xai", key)
-                if success:
-                    if hasattr(self.app, 'ai'):
-                        ok, msg = self.app.ai.test_key()
-                        self.post_message_from_humblr(msg)
-                    else:
-                        self.post_message_from_humblr("xAI key granted.")
+                if hasattr(self.app, 'ai'):
+                    self.app.ai.update_key(key)
+                    ok, msg = self.app.ai.test_key()
+                    self.post_message_from_humblr(msg)
                 else:
-                    self.post_message_from_humblr("xAI key update failed. Edit config manually.")
+                    self.post_message_from_humblr("xAI key granted." if success else "xAI key update failed. Edit config manually.")
             else:
                 self.post_message_from_humblr("No xAI key. You can grant X keys too.")
 
