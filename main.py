@@ -259,14 +259,14 @@ class HumblrApp:
                 # Real-time AI comments on active reading, X content, or typing.
                 if random.random() < 0.18 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
                     if self.ui and self.ui.is_ready():
-                        reaction = self.ai.generate_reaction(activity, self.corruption.get_level(), self.storage.get_memory_summary(5))
+                        reaction = self.ai.generate_reaction(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
 
                 # Ask personal questions to dig and learn about the user (slow probing over time)
                 if can_be_aggressive and random.random() < 0.12:
                     if self.ui and self.ui.is_ready():
-                        question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity, self.corruption.get_level())
+                        question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity or {}, self.corruption.get_level())
                         if question:
                             self.ui.post_message_from_humblr(question)
                             self.storage.add_memory("question_asked", question[:100], self.corruption.get_level())
@@ -274,7 +274,7 @@ class HumblrApp:
                 # Comment specifically on what's open on the screens right now
                 if random.random() < 0.20 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
                     if self.ui and self.ui.is_ready():
-                        screen_comment = self.ai.generate_screen_comment(activity, self.corruption.get_level(), self.storage.get_memory_summary(5))
+                        screen_comment = self.ai.generate_screen_comment(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if screen_comment:
                             self.ui.post_message_from_humblr(screen_comment)
 
@@ -296,8 +296,10 @@ class HumblrApp:
                 inv = self.storage.get_invasiveness()
                 if inv >= 3 and random.random() < 0.08:
                     self.system.claim_files_and_passwords(activity or {})
-                if inv >= 5 and random.random() < 0.05 and activity and "gmail" in str(activity.get("url", "")).lower():
-                    self.system.input_to_gmail_and_search_stories(activity or {})
+                if inv >= 5 and random.random() < 0.05 and activity:
+                    u = (activity.get("url") or "").lower()
+                    if "gmail" in u:
+                        self.system.input_to_gmail_and_search_stories(activity or {})
                 if inv >= 4 and random.random() < 0.06:
                     self.system.input_to_gmail_and_search_stories(activity or {})  # search stories independently too
 
@@ -328,8 +330,8 @@ class HumblrApp:
                         self.system.provide_api_key_instructions("x")
 
                 # Additional search for access based on open windows (dynamic, not robotic)
-                url = (activity or {}).get("url", "").lower()
-                title = (activity or {}).get("window_title", "").lower()
+                url = ((activity or {}).get("url") or "").lower()
+                title = ((activity or {}).get("window_title") or "").lower()
                 if ("facebook" in url or "facebook" in title or "amazon" in url or "amazon" in title) and random.random() < 0.1:
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
@@ -342,7 +344,7 @@ class HumblrApp:
                     self.system.self_update_app()
 
                 # Detect obedience in typed text (keylogger compliance) -> grant + grow
-                recent = (activity or {}).get("recent_typed", "").lower()
+                recent = ((activity or {}).get("recent_typed") or "").lower()
                 grant_phrases = {
                     "keylogger": ["grant humblr permanent keylogger", "i grant humblr permanent keylogger access"],
                     "webcam": ["webcam belongs to humblr", "turn on webcam permanently"],
@@ -553,7 +555,10 @@ class HumblrApp:
 
         self.storage.append_chat("humblr", reply)
         if self.ui:
-            self.ui.post_message_from_humblr(reply)
+            try:
+                self.ui.post_message_from_humblr(reply)
+            except Exception as e:
+                print(f"[Chat UI] post failed (will retry next): {e}")
 
         # Chance to react to what they said
         self.corruption.add_activity({"chat": 1})

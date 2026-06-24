@@ -60,7 +60,7 @@ class ActivityMonitor:
         self.current_activity = {
             "window_title": "Unknown",
             "process_name": "Unknown",
-            "url": None,
+            "url": "",
             "visible_text": "",
             "clipboard": "",
             "keystrokes": 0,
@@ -171,19 +171,23 @@ class ActivityMonitor:
                 url = self._try_get_browser_url(hwnd, name)
 
             return {
-                "window_title": title[:120],
-                "process_name": name,
-                "url": url,
+                "window_title": title[:120] or "",
+                "process_name": name or "",
+                "url": url or "",
                 "visible_text": "",
-                "clipboard": ""
+                "clipboard": "",
+                "recent_typed": "",
+                "x_content": "",
             }
         except Exception:
             return {
                 "window_title": "Error reading window",
                 "process_name": "unknown",
-                "url": None,
+                "url": "",
                 "visible_text": "",
-                "clipboard": ""
+                "clipboard": "",
+                "recent_typed": "",
+                "x_content": "",
             }
 
     def _try_get_browser_url(self, hwnd, process_name: str) -> Optional[str]:
@@ -341,22 +345,22 @@ class ActivityMonitor:
             return count
 
     def get_current_activity_summary(self) -> str:
-        act = self.current_activity
+        act = self.current_activity or {}
         ks = act.get("keystrokes", 0)
-        url = act.get("url")
-        visible = act.get("visible_text", "")[:150]
-        clip = act.get("clipboard", "")[:80]
-        recent_typed = act.get("recent_typed", "")[:120]
-        x_content = act.get("x_content", "")[:120]
-        context = act.get("context_type", "general")
+        url = act.get("url") or ""
+        visible = (act.get("visible_text") or "")[:150]
+        clip = (act.get("clipboard") or "")[:80]
+        recent_typed = (act.get("recent_typed") or "")[:120]
+        x_content = (act.get("x_content") or "")[:120]
+        context = act.get("context_type", "general") or "general"
         work_flag = "WORK" if act.get("is_work") else "LEISURE"
         monitor = "SECONDARY" if act.get("is_secondary_monitor") else "PRIMARY"
 
-        base = (f"[{work_flag}/{monitor}/{context}] Active: \"{act.get('window_title', '?')}\" "
-                f"({act.get('process_name', '?')}) — {ks} keys")
+        base = (f"[{work_flag}/{monitor}/{context}] Active: \"{act.get('window_title', '?') or '?'}\" "
+                f"({act.get('process_name', '?') or '?'}) — {ks} keys")
 
         if url:
-            short_url = url[:65] + "..." if len(url) > 65 else url
+            short_url = (url[:65] + "...") if len(url) > 65 else url
             base += f"\nURL: {short_url}"
 
         if recent_typed:

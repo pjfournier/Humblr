@@ -39,6 +39,9 @@ class HumblrUI:
         self._start_status_updater()
         self._create_avatar()
 
+        # Flag for safe cross-thread readiness checks (avoids Tk main-loop errors)
+        self._ready = True
+
     def _build_ui(self):
         accent = self.config["ui"]["accent_color"]
         secondary = self.config["ui"]["secondary_accent"]
@@ -121,9 +124,13 @@ class HumblrUI:
         t.start()
 
     def post_message_from_humblr(self, text: str):
-        # Thread-safe: schedule on main UI thread (Tkinter is not thread-safe)
-        if self.root and self.root.winfo_exists():
-            self.root.after(0, lambda t=text: self._append_chat("Humblr", t, is_humblr=True))
+        # Thread-safe: always schedule on main UI thread via after().
+        # Never call winfo_exists() or other Tk calls from background threads.
+        if self.root:
+            try:
+                self.root.after(0, lambda t=text: self._append_chat("Humblr", t, is_humblr=True))
+            except Exception:
+                print(f"[UI] post deferred failed: {text[:80]}...")
 
     def _append_chat(self, speaker: str, text: str, is_humblr: bool = False):
         try:
@@ -225,7 +232,17 @@ class HumblrUI:
         ctk.CTkButton(win, text="Close", command=win.destroy).pack(pady=20)
 
     def is_ready(self):
-        return self.root.winfo_exists()
+        """Safe check callable from any thread.
+        Prefers internal flag to avoid calling Tk from background threads.
+        """
+        if getattr(self, '_ready', False) is False:
+            return False
+        if not self.root:
+            return False
+        try:
+            return bool(self.root.winfo_exists())
+        except Exception:
+            return getattr(self, '_ready', True)
 
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -234,6 +251,7 @@ class HumblrUI:
     def _on_close(self):
         # Humblr lives outside user control - closing only minimizes. Background is fully autonomous.
         # It will keep acting (wallpaper, posts, webcam, comments on your typing/reading) regardless.
+        self._ready = False
         self.root.withdraw()
         if self.app and hasattr(self.app, 'system'):
             self.app.system.show_humblr_message_popup(
@@ -243,6 +261,7 @@ class HumblrUI:
 
     def destroy(self):
         try:
+            self._ready = False
             if hasattr(self, 'avatar') and self.avatar:
                 self.avatar.destroy()
             self.root.destroy()

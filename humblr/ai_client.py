@@ -279,11 +279,11 @@ class AIClient:
         Uses current activity to find new ways to invade (computer + online life).
         Makes it dynamic, not robotic.
         """
-        context = activity.get("context_type", "general")
-        url = activity.get("url", "")
-        recent_typed = activity.get("recent_typed", "")[:50]
-        x_content = activity.get("x_content", "")[:50]
-        window = activity.get("window_title", "")
+        context = (activity.get("context_type") if isinstance(activity, dict) else None) or "general"
+        url = (activity.get("url") if isinstance(activity, dict) else None) or ""
+        recent_typed = (activity.get("recent_typed") if isinstance(activity, dict) else None) or ""
+        x_content = (activity.get("x_content") if isinstance(activity, dict) else None) or ""
+        window = (activity.get("window_title") if isinstance(activity, dict) else None) or ""
 
         base = f"Current: {context}, on {window}, corruption {corruption}, invasiveness {invasiveness}. "
         if "facebook" in url.lower() or "facebook" in window.lower():

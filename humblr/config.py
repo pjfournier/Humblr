@@ -70,6 +70,13 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
                     config[key] = value
         except Exception as e:
             print(f"[Config] Failed to load {path}: {e}. Using defaults.")
+            print("  Hint: Your config.json is invalid JSON (bad quotes, commas, etc at or near line 27). I'll write a fresh one now.")
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(DEFAULT_CONFIG, f, indent=2)
+                print(f"  Wrote clean {path}. Restart or grant key to load it.")
+            except Exception as write_err:
+                print(f"  Could not auto-write clean config: {write_err}")
     else:
         print(f"[Config] {path} not found. Using defaults + example if present.")
         # Try to copy example if exists
