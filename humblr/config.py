@@ -29,8 +29,12 @@ DEFAULT_CONFIG = {
     },
     "ui": {
         "always_on_top": True,
+        "start_minimized": False,
+        "theme": "dark",
         "accent_color": "#c026ff",
-        "secondary_accent": "#ff2e88"
+        "secondary_accent": "#ff2e88",
+        "window_width": 520,
+        "window_height": 680
     },
     "system": {
         "allow_wallpaper_change": True,
@@ -77,5 +81,19 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
                 config.update(example_data)
             except Exception:
                 pass
+
+    # Ensure required ui keys exist (in case of partial user config or bad json)
+    ui_defaults = {
+        "always_on_top": True,
+        "start_minimized": False,
+        "theme": "dark",
+        "accent_color": "#c026ff",
+        "secondary_accent": "#ff2e88",
+        "window_width": 520,
+        "window_height": 680
+    }
+    for k, v in ui_defaults.items():
+        if k not in config.get("ui", {}):
+            config.setdefault("ui", {})[k] = v
 
     return config

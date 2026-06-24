@@ -109,7 +109,7 @@ class ActivityMonitor:
         # UIAutomation must be initialized per-thread when used from a background thread.
         # Wrap the UIA-dependent parts (window detection + text extraction) in the required context.
         if auto is not None:
-            uia_ctx = auto.UiaAutomationInitializerInThread()
+            uia_ctx = auto.UIAutomationInitializerInThread()
         else:
             uia_ctx = nullcontext()
 
