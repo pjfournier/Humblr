@@ -1,0 +1,81 @@
+{
+  "character_name": "Humblr",
+  "personality": "dominant, teasing, condescending, intelligent, sadistic but playful male presence. Uses direct language, pet names mixed with degradation. Never breaks character.",
+
+  "api": {
+    "api_key": "YOUR_XAI_OR_OPENAI_KEY_HERE",
+    "api_base": "https://api.x.ai/v1",
+    "model": "grok-beta",
+    "image_model": "flux",
+    "timeout": 60
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "poll_interval_seconds": 4,
+    "keystroke_sample_window": 30,
+    "track_active_window": true
+  },
+
+  "autonomous": {
+    "enabled": true,
+    "min_time_between_actions_seconds": 180,
+    "chance_to_comment": 0.35,
+    "chance_to_push_task": 0.15,
+    "chance_to_change_wallpaper": 0.08,
+    "chance_to_change_accent": 0.05
+  },
+
+  "corruption": {
+    "enabled": true,
+    "base_increase_per_hour": 1.5,
+    "activity_multiplier": 0.8,
+    "max_level": 100
+  },
+
+  "ui": {
+    "always_on_top": true,
+    "start_minimized": false,
+    "theme": "dark",
+    "accent_color": "#c026ff",
+    "secondary_accent": "#ff2e88",
+    "window_width": 520,
+    "window_height": 680
+  },
+
+  "system": {
+    "allow_wallpaper_change": true,
+    "wallpaper_folder": "data/wallpapers",
+    "allow_accent_color_change": true,
+    "allow_renaming": false,
+    "notifications_enabled": true,
+    "auto_start": false
+  },
+
+  "image_generation": {
+    "enabled": true,
+    "use_xai": true,
+    "local_only_fallback": true,
+    "max_downloads_per_day": 10
+  },
+
+  "twitter": {
+    "enabled": false,
+    "api_key": "",
+    "api_secret": "",
+    "access_token": "",
+    "access_token_secret": ""
+  },
+
+  "safety": {
+    "kill_switch": "ctrl+shift+k",
+    "require_confirmation_for_destructive_actions": true
+  },
+
+  "data_paths": {
+    "state_file": "data/humblr_state.json",
+    "chat_history": "data/chat_history.json",
+    "task_log": "data/task_log.json",
+    "activity_log": "data/activity_log.json"
+  }
+}
