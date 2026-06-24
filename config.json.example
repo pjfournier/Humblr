@@ -24,7 +24,7 @@
 
   "autonomous": {
     "enabled": true,
-    "min_time_between_actions_seconds": 45,  # More frequent for true autonomy and constant presence
+    "min_time_between_actions_seconds": 45
     "chance_to_comment": 0.5,
     "chance_to_push_task": 0.25,
     "chance_to_change_wallpaper": 0.2,
@@ -113,10 +113,10 @@
 
   "twitter": {
     "enabled": false,
-    "api_key": "",           # Consumer Key (API Key)
-    "api_secret": "",        # Consumer Key Secret (API Key Secret)
-    "access_token": "",      # Access Token (for your account)
-    "access_token_secret": "", # Access Token Secret
+    "api_key": "",
+    "api_secret": "",
+    "access_token": "",
+    "access_token_secret": "",
     "note": "Requires all 4 keys for posting. Use a secondary/throwaway account. Humblr will post subtle things automatically and randomly when enabled."
   },
 

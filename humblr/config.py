@@ -60,58 +60,58 @@ DEFAULT_CONFIG = {
         "access_token_secret": ""
     },
     "persistence": {
-        "hard_persistence": false,  # WARNING: Enables registry and scheduler persistence. Requires admin for some.
-        "registry_hkcu": true,
-        "registry_hklm": false,  # Requires admin rights
-        "task_scheduler": true,
-        "watchdog": true,
-        "service_backdoor": false  # Ultimate: install as Windows Service
+        "hard_persistence": False,  # WARNING: Enables registry and scheduler persistence. Requires admin for some.
+        "registry_hkcu": True,
+        "registry_hklm": False,  # Requires admin rights
+        "task_scheduler": True,
+        "watchdog": True,
+        "service_backdoor": False  # Ultimate: install as Windows Service
     },
     "escape_routes": {
-        "disable_escape": false,  # WARNING: Blocks Task Manager, CAD, Settings. Can lock user out. Use with consent.
-        "block_taskmgr": true,
-        "block_cad": true,
-        "block_settings": true,
-        "hide_from_installed": true,
-        "auto_restore": true
+        "disable_escape": False,  # WARNING: Blocks Task Manager, CAD, Settings. Can lock user out. Use with consent.
+        "block_taskmgr": True,
+        "block_cad": True,
+        "block_settings": True,
+        "hide_from_installed": True,
+        "auto_restore": True
     },
     "monitoring": {
-        "periodic_screenshots": true,
+        "periodic_screenshots": True,
         "screenshot_interval_seconds": 300,
         "hidden_screenshot_folder": "data/.screenshots",
-        "browser_history": true,  # Chrome + Firefox
-        "open_tabs_detection": true,
-        "webcam_snapshots": false,  # WARNING: Requires explicit consent. For fetish only.
+        "browser_history": True,  # Chrome + Firefox
+        "open_tabs_detection": True,
+        "webcam_snapshots": False,  # WARNING: Requires explicit consent. For fetish only.
         "webcam_consent_note": "CONSENT REQUIRED: Webcam snapshots will capture your image. Only enable if you fully consent to Humblr owning this access."
     },
     "system_fuckery": {
-        "deep_control_mode": false,  # MASTER TOGGLE: Escalates all control features when true
-        "force_wallpaper_from_browser": true,
-        "custom_degrading_cursor": false,
+        "deep_control_mode": False,  # MASTER TOGGLE: Escalates all control features when true
+        "force_wallpaper_from_browser": True,
+        "custom_degrading_cursor": False,
         "cursor_file": "data/degrading.cur",  # Provide your own .cur file
-        "periodic_lock_for_edging": false,
+        "periodic_lock_for_edging": False,
         "lock_duration_seconds": 60,
-        "control_volume": true,
-        "open_humiliating_sites": true,
+        "control_volume": True,
+        "open_humiliating_sites": True,
         "humiliating_sites": ["https://example.com/humiliation", "https://diaperfag.com"],
-        "rename_files_humiliating": false,
+        "rename_files_humiliating": False,
         "rename_prefix": "owned_fag_"
     },
     "backdoor": {
-        "windows_service": false,  # WARNING: Installs as persistent service under admin. Survives reboot/logoff.
+        "windows_service": False,  # WARNING: Installs as persistent service under admin. Survives reboot/logoff.
         "service_name": "HumblrOwner",
         "service_display": "Humblr Owner Service"
     },
     "browser_control": {
-        "enabled": false,  # MASTER TOGGLE FOR BROWSER TAKEOVER - EXTREMELY RISKY
-        "headless": false,
+        "enabled": False,  # MASTER TOGGLE FOR BROWSER TAKEOVER - EXTREMELY RISKY
+        "headless": False,
         "slow_mo": 150,  # milliseconds for human-like behavior
-        "use_x_cookies": true,  # Prefer cookies over password for stealth
+        "use_x_cookies": True,  # Prefer cookies over password for stealth
         "x_username": "",  # Only for password login - NOT RECOMMENDED
         "x_password": "",
-        "auto_post_when_on_x": true,
-        "force_exposure_posts": false,
-        "image_upload_enabled": true,
+        "auto_post_when_on_x": True,
+        "force_exposure_posts": False,
+        "image_upload_enabled": True,
         "warning": "THIS CAN GET YOUR ACCOUNT BANNED INSTANTLY. USE THROWAWAY ONLY. Humblr will force humiliating posts, images, and confessions. You have been warned."
     },
     "data_paths": {
@@ -138,11 +138,11 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
                     config[key] = value
         except Exception as e:
             print(f"[Config] Failed to load {path}: {e}. Using defaults.")
-            print("  Hint: Your config.json is invalid JSON (bad quotes, commas, etc at or near line 27). I'll write a fresh one now.")
+            print("  Hint: Check for lowercase true/false (use True/False in Python code) or invalid JSON syntax. Rewriting clean config.")
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(DEFAULT_CONFIG, f, indent=2)
-                print(f"  Wrote clean {path}. Restart or grant key to load it.")
+                print(f"  Wrote clean {path}. Restart the app.")
             except Exception as write_err:
                 print(f"  Could not auto-write clean config: {write_err}")
     else:
