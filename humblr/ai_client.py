@@ -14,6 +14,9 @@ try:
 except ImportError:
     OpenAI = None
 
+# Note: We use the openai library to talk to Grok (xAI's API is OpenAI-compatible).
+# This is the official recommended way for Python + Grok. You do NOT need a separate "grok" package.
+
 import requests
 
 
@@ -68,6 +71,30 @@ class AIClient:
             print("[AI] Warning: pasted key does not start with 'xai-'. Make sure it's a valid key from console.x.ai")
         self.api_key = new_key
         self._reload_client()
+
+    def test_key(self) -> tuple[bool, str]:
+        """One-time confirmation test to ensure the Grok key actually works.
+        Returns (success, message). Cheap call with tiny max_tokens.
+        """
+        if not self.client or not self.api_key:
+            return False, "No valid client or key loaded yet."
+
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": "Confirm this key works with Grok. Reply with exactly: KEY-OK"}],
+                max_tokens=5,
+                temperature=0.0
+            )
+            content = (resp.choices[0].message.content or "").strip()
+            if "KEY-OK" in content.upper():
+                return True, f"✅ Key confirmed and tested successfully with Grok! Response: {content}"
+            return True, f"Key works (Grok responded: {content})"
+        except Exception as e:
+            err = str(e)
+            if "Incorrect API key" in err or ("invalid" in err.lower() and "key" in err.lower()):
+                return False, "❌ Invalid xAI Grok key. Get a fresh one from https://console.x.ai/ and paste it again."
+            return False, f"❌ Key test failed: {err[:200]}"
 
     def _get_system_prompt(self, corruption_level: float, activity: str, memory: str = "") -> str:
         level_desc = "low" if corruption_level < 20 else ("medium" if corruption_level < 55 else "high")

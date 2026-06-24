@@ -194,7 +194,14 @@ class HumblrUI:
         if text.startswith("xai-") and len(text) > 20:
             if hasattr(self.app, 'system'):
                 self.app.system.update_config_with_key("xai", text)
-                self.post_message_from_humblr("xAI Grok key granted and AI client reloaded live. Try chatting now — I should respond with the model.")
+                # One-time test + confirmation
+                if hasattr(self.app, 'ai'):
+                    success, msg = self.app.ai.test_key()
+                    self.post_message_from_humblr(msg)
+                    if not success:
+                        self.post_message_from_humblr("Paste a valid key from https://console.x.ai/ to continue.")
+                else:
+                    self.post_message_from_humblr("xAI Grok key granted and AI client reloaded live. Try chatting now.")
             return
         if len(text) > 30 and ("-" in text or text.count(".") > 2):  # rough for X keys
             if hasattr(self.app, 'system'):
@@ -472,7 +479,11 @@ class HumblrUI:
             if key and len(key) > 10:
                 success = self.app.system.update_config_with_key("xai", key)
                 if success:
-                    self.post_message_from_humblr("xAI key granted.")
+                    if hasattr(self.app, 'ai'):
+                        ok, msg = self.app.ai.test_key()
+                        self.post_message_from_humblr(msg)
+                    else:
+                        self.post_message_from_humblr("xAI key granted.")
                 else:
                     self.post_message_from_humblr("xAI key update failed. Edit config manually.")
             else:

@@ -507,8 +507,14 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             if key_type == "xai" and hasattr(self, 'app') and self.app and hasattr(self.app, 'ai'):
                 try:
                     self.app.ai.update_key(key_value)
+                    # One-time confirmation test
+                    ok, msg = self.app.ai.test_key()
+                    if ok:
+                        self.notify("Humblr", msg)
+                    else:
+                        print(f"[Keys] {msg}")
                 except Exception as e:
-                    print(f"[AI] Could not live-update AI client: {e}")
+                    print(f"[AI] Could not live-update/test AI client: {e}")
 
             self.notify("Humblr", f"Key granted and config updated (cleaned if needed). I now have more power.")
             self.storage.add_memory("key_granted", f"User granted {key_type} key, config updated", self.storage.get_corruption())
