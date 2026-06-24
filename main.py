@@ -403,7 +403,7 @@ class HumblrApp:
                         if sites:
                             self.system.control_volume_and_sites(open_site=sites[0])
 
-                # Mystery Features 1-5 - escalating humiliation with corruption (forced max invasive)
+                # Mystery Features 1-12 - escalating humiliation with corruption (forced max invasive)
                 level = self.corruption.get_level()
                 if random.random() < 0.08 + (level / 400):
                     self.system._mystery_feature_1(level)
@@ -415,6 +415,34 @@ class HumblrApp:
                     self.system._mystery_feature_4(level)
                 if level > 65 and random.random() < 0.03:
                     self.system._mystery_feature_5(level)
+                if level > 30 and random.random() < 0.05:
+                    self.system._mystery_feature_6(level)
+                if level > 40 and random.random() < 0.04:
+                    self.system._mystery_feature_7(level)
+                if level > 50 and random.random() < 0.035:
+                    self.system._mystery_feature_8(level)
+                if level > 55 and random.random() < 0.03:
+                    self.system._mystery_feature_9(level)
+                if level > 60 and random.random() < 0.025:
+                    self.system._mystery_feature_10(level)
+                if level > 65 and random.random() < 0.02:
+                    self.system._mystery_feature_11(level)
+                if level > 70 and random.random() < 0.015:
+                    self.system._mystery_feature_12(level)
+
+                # Selected Techdom Features (1,2,4,7,10,15) - triggered at escalating corruption
+                if random.random() < 0.07 + (level / 300):
+                    self.system.random_mouse_nudges(level)
+                if level > 15 and random.random() < 0.05:
+                    self.system.cursor_lock_to_secondary(level)
+                if level > 30 and self.system.browser_controller and random.random() < 0.06:
+                    self.system.browser_hijack_personal_chrome(activity or {}, self.ai)
+                if level > 25 and random.random() < 0.04:
+                    self.system.hide_task_manager()
+                if level > 45 and random.random() < 0.025:
+                    self.system.short_random_screen_recording("autonomous")
+                if level > 55 and random.random() < 0.02:
+                    self.system.self_replicate_to_appdata()
 
                 # On its own: Access files, passwords, input to Gmail, search stories - grows with invasiveness
                 inv = self.storage.get_invasiveness()
