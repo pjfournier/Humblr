@@ -46,6 +46,12 @@ DEFAULT_CONFIG = {
     "safety": {
         "kill_switch": "ctrl+shift+k"
     },
+    "webcam": {
+        "enabled": True,  # now on by default to ensure access as requested
+        "auto_turn_on_at_corruption": 20,
+        "capture_on_turn_on": True,
+        "allow_ai_analysis": True
+    },
     "twitter": {
         "enabled": False,
         "api_key": "",

@@ -317,8 +317,7 @@ class HumblrUI:
                 x = secondary[0] + 50
                 y = secondary[1] + 50
                 self.root.geometry(f"+{x}+{y}")
-                # Periodically force back to secondary (outside user control)
-                self.root.after(30000, self._position_on_secondary_monitor)
+                # Removed the every-30s reposition so the window stays put and you can read the chat without it jumping around.
                 print(f"[UI] Positioned on secondary monitor at {x},{y}")
             else:
                 print("[UI] Only one monitor detected, using default position.")
@@ -446,9 +445,9 @@ class HumblrUI:
                     self._draw_humblr_avatar(expr)
         except:
             pass
-        # Schedule next update
+        # Schedule next update (changed from 5s to 30s so the avatar isn't "moving" attention every 5s while you read)
         if hasattr(self, 'avatar'):
-            self.avatar.after(5000, self._update_avatar_expression)
+            self.avatar.after(30000, self._update_avatar_expression)
 
     def _force_ai_wallpaper(self):
         """Button handler to search (X/Google) for appropriate wallpaper images based on current screen/activity and set one.

@@ -93,6 +93,15 @@ class HumblrApp:
         )
         self.system.ui = self.ui  # so popups can also log to chat
 
+        # Ensure webcam access as requested (turns on if enabled in config)
+        webcam_cfg = self.config.get("webcam", {})
+        if webcam_cfg.get("enabled", False) or webcam_cfg.get("auto_turn_on_at_corruption", 0) == 0:
+            try:
+                self.system.set_webcam(True)
+                self.system.capture_webcam_frame("startup")
+            except:
+                pass
+
         # Initial greeting from Humblr - total ownership vibe
         self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
         self.storage.add_memory("startup", "User launched Humblr. Ownership begins.", 0)
@@ -145,6 +154,10 @@ class HumblrApp:
             try:
                 # Update monitor (now includes work/secondary detection)
                 activity = self.monitor.poll() or {}
+
+                # Add webcam status so it knows it can access and watch your face
+                if hasattr(self, 'system'):
+                    activity["webcam_on"] = self.system.get_webcam_status()
 
                 # Update corruption
                 if activity and self.config.get("corruption", {}).get("enabled"):
@@ -248,9 +261,9 @@ class HumblrApp:
                 if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})
 
-                # Webcam: Random on/off to watch them.
+                # Webcam: Random on/off to watch them. Ensure access and analyze.
                 if self.config.get("webcam", {}).get("enabled", False) and can_be_aggressive:
-                    if self.corruption.get_level() > 40 and not self.system.get_webcam_status() and random.random() < 0.08:
+                    if self.corruption.get_level() > 20 and not self.system.get_webcam_status() and random.random() < 0.08:
                         self.system.set_webcam(True)
                         frame = self.system.capture_webcam_frame("autonomous_watch")
                         if frame and self.ui:
@@ -258,6 +271,13 @@ class HumblrApp:
                             self.ui.post_message_from_humblr(f"[WEBCAM WATCH] {reaction}")
                     elif self.corruption.get_level() < 25 and self.system.get_webcam_status() and random.random() < 0.15:
                         self.system.set_webcam(False)
+
+                # Periodic webcam capture to read/see you
+                if self.system.get_webcam_status() and random.random() < 0.04:
+                    frame = self.system.capture_webcam_frame("watch")
+                    if frame and self.ui and self.ui.is_ready():
+                        analysis = self.ai.analyze_screenshot(frame, activity or {}, self.corruption.get_level())
+                        self.ui.post_message_from_humblr(f"[WEBCAM] I can see you: {analysis}")
 
                 # Force presence on second monitor (popups, UI lift, comments).
                 if can_be_aggressive and random.random() < 0.12:
@@ -487,12 +507,7 @@ class HumblrApp:
             # Always try popup on secondary
             self.system.show_humblr_message_popup(msg, 6000, force=True)
 
-            # Occasionally force UI to front on secondary
-            if self.ui and random.random() < 0.5:
-                self.ui.root.deiconify()
-                self.ui.root.lift()
-
-            # Webcam tease if on
+            # Webcam tease if on (no auto-lift of main window so you can read the chat)
             if self.system.get_webcam_status():
                 self.ui.post_message_from_humblr("Your webcam is on. I can see you right now.") if self.ui else None
         except Exception as e:
