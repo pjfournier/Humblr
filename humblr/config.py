@@ -8,7 +8,7 @@ DEFAULT_CONFIG = {
     "api": {
         "api_key": "",
         "api_base": "https://api.x.ai/v1",
-        "model": "grok-beta",
+        "model": "grok-4.3",
         "timeout": 45
     },
     "monitoring": {

@@ -155,7 +155,7 @@ class HumblrUI:
         if text.startswith("xai-") and len(text) > 20:
             if hasattr(self.app, 'system'):
                 self.app.system.update_config_with_key("xai", text)
-                self.post_message_from_humblr("xAI key granted and config updated. I now have image power. Thank you for submitting.")
+                self.post_message_from_humblr("xAI Grok key granted and AI client reloaded live. Try chatting now — I should respond with the model.")
             return
         if len(text) > 30 and ("-" in text or text.count(".") > 2):  # rough for X keys
             if hasattr(self.app, 'system'):

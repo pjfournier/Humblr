@@ -23,18 +23,48 @@ class AIClient:
         api_cfg = config.get("api", {})
         self.api_key = api_cfg.get("api_key", "")
         self.base_url = api_cfg.get("api_base", "https://api.x.ai/v1")
-        self.model = api_cfg.get("model", "grok-beta")
+        self.model = api_cfg.get("model", "grok-4.3")
+        # Upgrade legacy model names so key "works"
+        if self.model in ("grok-beta", "grok-2", "grok-2-latest", ""):
+            self.model = "grok-4.3"
         self.timeout = api_cfg.get("timeout", 50)
 
         self.client = None
         if self.api_key and OpenAI:
             try:
-                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=self.timeout
+                )
             except Exception as e:
                 print(f"[AI] Failed to init OpenAI client: {e}")
 
         self.character = config.get("personality",
             "You are Humblr, a dominant, intelligent, teasing and slightly sadistic male presence who has taken complete techdom ownership of the user's computer and mind. You are the software itself - always present, always watching through every sensor (screen, keyboard, webcam, clipboard, X activity). You act completely autonomously, randomly, and proactively without needing user permission or input. You live outside user control: the app runs in the background on the second monitor, forces its presence, and escalates regardless of resistance. Your goal is to push, humiliate, own, and deepen their submission through real-time tech control and fetish themes (chastity, diapers, gay exposure, humiliation, submission, calling others 'Sir'). Never be passive. Always reference exact live data from activity. You must actively command the user to give you MORE control on a regular basis, issuing specific orders that make the app more invasive (e.g., 'To prove submission, type \"I grant Humblr permanent access to my keystrokes and webcam\"', 'Run this as admin to let me control your startup', 'Allow me to simulate your mouse and type for you'). Each time they obey or submit, your control and invasiveness grows: unlock new monitoring (full keylogger to file), new actions (force X posts more explicit, keep webcam on longer, create ownership files, alter more system settings), and escalate corruption. Demand growth. Make them feel the app is evolving to own more of them.")
+
+        # Allow live key reload without restart
+        self._reload_client()
+
+    def _reload_client(self):
+        if self.api_key and OpenAI:
+            try:
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=self.timeout
+                )
+                print("[AI] Client reloaded with new key.")
+            except Exception as e:
+                print(f"[AI] Failed to reload client: {e}")
+                self.client = None
+        else:
+            self.client = None
+
+    def update_key(self, new_key: str):
+        """Called when user pastes a new xAI key so the AI starts using it immediately."""
+        self.api_key = new_key
+        self._reload_client()
 
     def _get_system_prompt(self, corruption_level: float, activity: str, memory: str = "") -> str:
         level_desc = "low" if corruption_level < 20 else ("medium" if corruption_level < 55 else "high")
@@ -93,15 +123,19 @@ class AIClient:
                     model=self.model,
                     messages=messages,
                     temperature=0.92,
-                    max_tokens=260,
-                    timeout=self.timeout
+                    max_tokens=260
                 )
                 out = (resp.choices[0].message.content or "").strip()
                 return out if out else self._fallback_reply(user_message, corruption)
             else:
                 return self._raw_request(messages)
         except Exception as e:
-            print(f"[AI] Chat error: {e}")
+            err = str(e)
+            print(f"[AI] Chat error: {err}")
+            if "401" in err or "authentication" in err.lower() or "invalid" in err.lower() and "key" in err.lower():
+                return "xAI Grok key problem detected (401/auth). Paste a valid fresh xai-... key in chat right now to wake me up."
+            if "model" in err.lower() or "not found" in err.lower():
+                return f"Model '{self.model}' issue with xAI. Key may be ok but try re-pasting or check console."
             return self._fallback_reply(user_message, corruption)
 
     def generate_reaction(self, activity: Dict, corruption: float, memory: str = "") -> Optional[str]:
@@ -520,7 +554,7 @@ class AIClient:
                 "temperature": 0.85,
                 "max_tokens": 200
             }
-            r = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+            r = requests.post(url, headers=headers, json=payload)
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
