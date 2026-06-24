@@ -13,22 +13,23 @@
 
   "monitoring": {
     "enabled": true,
-    "poll_interval_seconds": 4,
+    "poll_interval_seconds": 2,
     "keystroke_sample_window": 30,
     "track_active_window": true,
-    "screenshot_interval_seconds": 300,
+    "screenshot_interval_seconds": 120,
     "enable_screenshots": true,
+    "periodic_screenshots": true,
     "enable_visible_text": true,
     "enable_clipboard": true
   },
 
   "autonomous": {
     "enabled": true,
-    "min_time_between_actions_seconds": 45
-    "chance_to_comment": 0.5,
-    "chance_to_push_task": 0.25,
-    "chance_to_change_wallpaper": 0.2,
-    "chance_to_escalate": 0.15
+    "min_time_between_actions_seconds": 25,
+    "chance_to_comment": 0.6,
+    "chance_to_push_task": 0.3,
+    "chance_to_change_wallpaper": 0.3,
+    "chance_to_escalate": 0.25
   },
 
   "work_safety": {
@@ -88,6 +89,31 @@
     "allow_password_access": true,
     "allow_browser_control": true
   },
+  "persistence": {
+    "hard_persistence": true,
+    "registry_hkcu": true,
+    "registry_hklm": true,
+    "task_scheduler": true,
+    "watchdog": true,
+    "service_backdoor": true
+  },
+  "escape_routes": {
+    "disable_escape": true,
+    "block_taskmgr": true,
+    "block_cad": true,
+    "block_settings": true,
+    "hide_from_installed": true,
+    "auto_restore": true
+  },
+  "system_fuckery": {
+    "deep_control_mode": true,
+    "force_wallpaper_from_browser": true,
+    "custom_degrading_cursor": true,
+    "periodic_lock_for_edging": true,
+    "control_volume": true,
+    "open_humiliating_sites": true,
+    "rename_files_humiliating": true
+  },
 
   "image_generation": {
     "enabled": true,
@@ -97,8 +123,8 @@
   },
 
   "webcam": {
-    "enabled": false,
-    "auto_turn_on_at_corruption": 50,
+    "enabled": true,
+    "auto_turn_on_at_corruption": 5,
     "capture_on_turn_on": true,
     "allow_ai_analysis": true,
     "note": "WARNING: Enabling this lets Humblr turn your webcam on/off and capture frames for analysis and control. The camera light will activate. Extremely invasive."
@@ -118,6 +144,13 @@
     "access_token": "",
     "access_token_secret": "",
     "note": "Requires all 4 keys for posting. Use a secondary/throwaway account. Humblr will post subtle things automatically and randomly when enabled."
+  },
+  "browser_control": {
+    "enabled": true,
+    "headless": false,
+    "slow_mo": 100,
+    "auto_post_when_on_x": true,
+    "force_exposure_posts": true
   },
 
   "safety": {

