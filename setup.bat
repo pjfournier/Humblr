@@ -46,6 +46,7 @@ if not exist data (
     mkdir data\wallpapers\kinky\humiliation
     mkdir data\screenshots
     mkdir data\webcam
+    mkdir data\wallpapers\generated
     mkdir logs
 )
 

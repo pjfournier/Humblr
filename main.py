@@ -204,7 +204,17 @@ class HumblrApp:
             if self.config.get("wallpaper", {}).get("kinky_enabled") and self.corruption.get_level() > 30:
                 theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
                 prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
-                self.system.set_kinky_wallpaper(theme, prompt)
+
+                # Try to generate image on the fly if we have no local images
+                image_path = None
+                if self.config.get("image_generation", {}).get("enabled", False):
+                    image_path = self.ai.generate_wallpaper_image(prompt)
+
+                if image_path:
+                    self.system._apply_wallpaper(image_path)  # direct apply the generated one
+                    self.storage.add_memory("kinky_wallpaper", f"AI-generated {theme} wallpaper", self.corruption.get_level())
+                else:
+                    self.system.set_kinky_wallpaper(theme, prompt)
             else:
                 self.system.cycle_wallpaper()
 
@@ -224,8 +234,17 @@ class HumblrApp:
                 if random.random() < 0.3:
                     theme = random.choice(["chastity", "diapers", "humiliation"])
                     prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
-                    self.system.set_kinky_wallpaper(theme, prompt)
-                    self.storage.add_memory("aggressive_wallpaper", f"Force set {theme}", self.corruption.get_level())
+
+                    image_path = None
+                    if self.config.get("image_generation", {}).get("enabled", False):
+                        image_path = self.ai.generate_wallpaper_image(prompt)
+
+                    if image_path:
+                        self.system._apply_wallpaper(image_path)
+                        self.storage.add_memory("aggressive_wallpaper", f"AI-generated {theme}", self.corruption.get_level())
+                    else:
+                        self.system.set_kinky_wallpaper(theme, prompt)
+                        self.storage.add_memory("aggressive_wallpaper", f"Force set {theme}", self.corruption.get_level())
 
             if access_level >= 4 and can_be_aggressive:
                 if random.random() < 0.25:

@@ -54,10 +54,15 @@ class SystemActions:
         if not self.config.get("system", {}).get("allow_wallpaper_change", True):
             return
 
-        candidates = list(self.wallpaper_dir.glob("*.jpg")) + list(self.wallpaper_dir.glob("*.png")) + list(self.wallpaper_dir.glob("*.jpeg"))
+        # Prefer generated if available (for users without initial library)
+        generated_dir = Path("data/wallpapers/generated")
+        candidates = list(generated_dir.glob("*.jpg")) + list(generated_dir.glob("*.png")) + list(generated_dir.glob("*.jpeg"))
 
         if not candidates:
-            self.notify("Humblr", "No wallpapers in data/wallpapers yet. Feed me some images.")
+            candidates = list(self.wallpaper_dir.glob("*.jpg")) + list(self.wallpaper_dir.glob("*.png")) + list(self.wallpaper_dir.glob("*.jpeg"))
+
+        if not candidates:
+            self.notify("Humblr", "No wallpapers yet. I can generate some if image gen is enabled in config.")
             return
 
         chosen = force_path or str(random.choice(candidates))
@@ -73,13 +78,19 @@ class SystemActions:
             print(f"[System] Wallpaper change failed: {e}")
 
     def set_kinky_wallpaper(self, theme: str = None, ai_prompt: str = None):
-        """Aggressively set a kinky themed wallpaper. Prefers themed folders, falls back to prompt suggestion."""
+        """Aggressively set a kinky themed wallpaper.
+        1. Looks in themed folders.
+        2. If none, tries to generate a new image on-the-fly using your AI key.
+        3. Last resort: uses a generated prompt (you can generate the image yourself).
+        """
         if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
             return self.cycle_wallpaper()
 
         themes = self.config.get("wallpaper", {}).get("themes", [])
         folders = self.config.get("wallpaper", {}).get("local_folders", {})
+        use_ai_gen = self.config.get("image_generation", {}).get("enabled", False)
 
+        # 1. Try themed folder first
         if theme and theme in folders:
             folder = Path(folders[theme])
             candidates = list(folder.glob("*.jpg")) + list(folder.glob("*.png"))
@@ -89,7 +100,7 @@ class SystemActions:
                 self.storage.add_memory("kinky_wallpaper", f"Switched to {theme} theme", self.storage.get_corruption())
                 return
 
-        # Try any kinky subfolder
+        # 2. Try any kinky subfolder
         kinky_root = Path("data/wallpapers/kinky")
         for sub in kinky_root.iterdir():
             if sub.is_dir():
@@ -100,9 +111,12 @@ class SystemActions:
                     self.storage.add_memory("kinky_wallpaper", f"Applied random kinky from {sub.name}", self.storage.get_corruption())
                     return
 
-        # Fallback: use prompt or general
+        # 3. No images available — the caller (main.py) already tried on-the-fly generation.
+        # Just notify with the prompt as last resort.
         if ai_prompt:
-            self.notify("Humblr", f"Use this kinky prompt in your image generator: {ai_prompt[:150]}...")
+            self.notify("Humblr", f"Couldn't auto-generate. Quick prompt you can use right now in Grok:\n\n{ai_prompt}\n\nThen drop the image into data/wallpapers/generated or any kinky folder.")
+
+        # Final fallback
         self.cycle_wallpaper()
 
     def _apply_wallpaper(self, path: str):

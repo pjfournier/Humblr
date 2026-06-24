@@ -5,6 +5,7 @@ Uses OpenAI-compatible API (xAI, OpenAI, local servers, etc.).
 
 import json
 import time
+from pathlib import Path
 from typing import List, Dict, Optional, Any
 
 try:
@@ -228,6 +229,52 @@ class AIClient:
         except Exception as e:
             print(f"[AI] Screenshot analysis error: {e}")
             return "I just screenshotted you. The evidence of your submission is delicious."
+
+    def generate_wallpaper_image(self, prompt: str) -> Optional[str]:
+        """Generate a wallpaper image using the configured API (xAI/compatible) and return local file path.
+        Falls back to None if the API doesn't support image generation in this format.
+        """
+        if not self.client or not self.api_key:
+            print("[AI] No client/key for image generation.")
+            return None
+
+        try:
+            image_cfg = self.config.get("image_generation", {})
+            model = image_cfg.get("image_model", "flux")  # or "dall-e-3" etc.
+
+            # This works for OpenAI-compatible image APIs
+            response = self.client.images.generate(
+                model=model,
+                prompt=prompt,
+                n=1,
+                size="1024x1024",   # widely supported; some services allow 1920x1080 or "1792x1024"
+            )
+
+            image_url = response.data[0].url
+
+            # Download the image
+            img_resp = requests.get(image_url, timeout=30)
+            if img_resp.status_code != 200:
+                print(f"[AI] Failed to download generated image: {img_resp.status_code}")
+                return None
+
+            # Save it
+            generated_dir = Path("data/wallpapers/generated")
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = int(time.time())
+            ext = "png" if "png" in image_url or model.lower() == "flux" else "jpg"
+            path = generated_dir / f"generated_{timestamp}.{ext}"
+
+            with open(path, "wb") as f:
+                f.write(img_resp.content)
+
+            print(f"[AI] Generated wallpaper saved to {path}")
+            return str(path)
+
+        except Exception as e:
+            print(f"[AI] Image generation failed: {e}")
+            print("Tip: If using xAI, you may need to use a compatible image endpoint or generate manually in Grok and drop the file in the folder.")
+            return None
 
     # --- Fallbacks ---
     def _fallback_reply(self, message: str, corruption: float) -> str:
