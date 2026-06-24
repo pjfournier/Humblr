@@ -40,7 +40,7 @@ DEFAULT_CONFIG = {
         "allow_wallpaper_change": True,
         "wallpaper_folder": "data/wallpapers",
         "allow_accent_color_change": True,
-        "notifications_enabled": True,
+        "notifications_enabled": False,
         "auto_start": False
     },
     "safety": {

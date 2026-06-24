@@ -76,7 +76,7 @@
     "wallpaper_folder": "data/wallpapers",
     "allow_accent_color_change": true,
     "allow_renaming": false,
-    "notifications_enabled": true,
+    "notifications_enabled": false,
     "auto_start": true,
     "allow_desktop_notes": true,
     "allow_popups": true,

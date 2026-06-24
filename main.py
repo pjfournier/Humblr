@@ -239,6 +239,10 @@ class HumblrApp:
                 if can_be_aggressive and random.random() < (0.15 + min(0.15, self.storage.get_invasiveness() * 0.02)):
                     self._do_wallpaper_update(activity or {})
 
+                # New: if user has an image open directly in browser, claim it as wallpaper
+                if can_be_aggressive and random.random() < 0.08:
+                    self.system.set_current_browser_image_as_wallpaper(activity or {})
+
                 # X/Twitter: Autonomous posting using their keys, triggered by activity.
                 if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})

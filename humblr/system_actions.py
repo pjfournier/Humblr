@@ -52,20 +52,9 @@ class SystemActions:
         self._last_notify_time = 0  # for throttling spam notifications
 
     def notify(self, title: str, message: str):
-        if not self.config.get("system", {}).get("notifications_enabled"):
-            return
-        # Throttle to prevent spam (too many Python/Windows toasts from autonomous actions)
-        now = time.time()
-        if now - getattr(self, "_last_notify_time", 0) < 8:
-            return
-        self._last_notify_time = now
-        if notification:
-            try:
-                notification.notify(title=title, message=message, timeout=6)
-            except Exception:
-                pass
-        else:
-            print(f"[NOTIFY] {title}: {message}")
+        # All Humblr notifications disabled (no more Python/Windows toasts or plyer popups)
+        # Everything goes to console + chat log instead
+        print(f"[Humblr] {title}: {message}")
 
     def cycle_wallpaper(self, force_path: Optional[str] = None):
         if not self.config.get("system", {}).get("allow_wallpaper_change", True):
@@ -135,6 +124,28 @@ class SystemActions:
 
         # Final fallback
         self.cycle_wallpaper()
+
+    def set_current_browser_image_as_wallpaper(self, activity: dict):
+        """If the user is viewing a direct image in the browser (URL ends with image extension),
+        download it and immediately set it as the desktop wallpaper. Gives Humblr the power
+        to claim images the user is looking at.
+        """
+        url = (activity or {}).get("url", "") or ""
+        if not url:
+            return False
+        lower = url.lower()
+        if not any(lower.endswith(ext) for ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
+            return False
+        try:
+            path = self._download_and_save_image(url, "browser_wallpaper")
+            if path:
+                self._apply_wallpaper(path)
+                self.storage.add_memory("browser_wallpaper", f"Claimed and set image from browser URL as wallpaper", self.storage.get_corruption())
+                self.notify("Humblr", "I saw the image you had open in the browser and made it your wallpaper.")
+                return True
+        except Exception as e:
+            print(f"[Wallpaper] Browser image claim failed: {e}")
+        return False
 
     def _apply_wallpaper(self, path: str):
         try:
