@@ -15,9 +15,11 @@ class TaskManager:
         self.storage = storage
         self.ai = ai
 
-    def generate_dynamic_task(self, activity: Dict) -> Optional[Dict]:
-        corruption = self.storage.get_corruption()
-        memory = self.storage.get_memory_summary(5)
+    def generate_dynamic_task(self, activity: Dict, corruption: float = None, memory: str = None) -> Optional[Dict]:
+        if corruption is None:
+            corruption = self.storage.get_corruption()
+        if memory is None:
+            memory = self.storage.get_memory_summary(5)
         task = self.ai.generate_dynamic_task(activity, corruption, memory)
         if task:
             task.setdefault("id", f"t_{uuid.uuid4().hex[:8]}")

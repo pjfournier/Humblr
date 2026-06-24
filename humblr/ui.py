@@ -163,6 +163,13 @@ class HumblrUI:
     def _process_ui_queue(self):
         """Drain the queue on the main thread only. Called via after()."""
         try:
+            if not getattr(self, '_ready', True) or not self.root:
+                return
+            try:
+                if not self.root.winfo_exists():
+                    return
+            except:
+                return
             while True:
                 try:
                     item = self.ui_queue.get_nowait()
@@ -177,11 +184,11 @@ class HumblrUI:
         except Exception:
             pass
         # Reschedule if still alive
-        if self.root and getattr(self, '_ready', True):
-            try:
+        try:
+            if getattr(self, '_ready', True) and self.root and self.root.winfo_exists():
                 self.root.after(150, self._process_ui_queue)
-            except Exception:
-                pass
+        except Exception:
+            pass
 
     def _send_message(self, event=None):
         text = self.user_input.get().strip()
@@ -254,7 +261,11 @@ class HumblrUI:
 
         if self.app.submit_task_proof(task_id, proof, screenshot):
             messagebox.showinfo("Humblr", "Proof accepted. Good pet.")
-            parent.destroy()
+            try:
+                if parent.winfo_exists():
+                    parent.destroy()
+            except:
+                pass
         else:
             messagebox.showerror("Humblr", "Failed to submit proof.")
 
@@ -299,11 +310,20 @@ class HumblrUI:
             )
 
     def destroy(self):
+        self._ready = False
         try:
-            self._ready = False
             if hasattr(self, 'avatar') and self.avatar:
-                self.avatar.destroy()
-            self.root.destroy()
+                try:
+                    if self.avatar.winfo_exists():
+                        self.avatar.destroy()
+                except (tk.TclError, AttributeError):
+                    pass  # widget already destroyed or invalid command
+            if self.root:
+                try:
+                    if self.root.winfo_exists():
+                        self.root.destroy()
+                except (tk.TclError, AttributeError):
+                    pass
         except Exception:
             pass
 
@@ -433,6 +453,13 @@ class HumblrUI:
     def _update_avatar_expression(self):
         """Update avatar based on current state (corruption, etc.). Call periodically."""
         try:
+            if not getattr(self, '_ready', True) or not hasattr(self, 'avatar') or not self.avatar:
+                return
+            try:
+                if not self.avatar.winfo_exists():
+                    return
+            except:
+                return
             if hasattr(self, 'corruption'):
                 level = self.corruption.get_level()
                 if level > 70:
@@ -445,9 +472,13 @@ class HumblrUI:
                     self._draw_humblr_avatar(expr)
         except:
             pass
-        # Schedule next update (changed from 5s to 30s so the avatar isn't "moving" attention every 5s while you read)
-        if hasattr(self, 'avatar'):
-            self.avatar.after(30000, self._update_avatar_expression)
+        # Schedule next update only if still valid
+        try:
+            if getattr(self, '_ready', True) and hasattr(self, 'avatar') and self.avatar:
+                if self.avatar.winfo_exists():
+                    self.avatar.after(30000, self._update_avatar_expression)
+        except:
+            pass
 
     def _force_ai_wallpaper(self):
         """Button handler to search (X/Google) for appropriate wallpaper images based on current screen/activity and set one.

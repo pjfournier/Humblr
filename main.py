@@ -225,19 +225,6 @@ class HumblrApp:
                             self.storage.add_memory("screenshot_analysis", analysis[:150], self.corruption.get_level())
                     last_screenshot = time.time()
 
-                # WEBCAM control - non-passive, proactive when aggressive
-                webcam_cfg = self.config.get("webcam", {})
-                if webcam_cfg.get("enabled", False) and can_be_aggressive:
-                    if self.corruption.get_level() > 45 and not self.system.get_webcam_status() and random.random() < 0.05:
-                        self.system.set_webcam(True)
-                        # capture and analyze
-                        frame_path = self.system.capture_webcam_frame("proactive")
-                        if frame_path and self.ui:
-                            analysis = self.ai.analyze_screenshot(frame_path, activity or {}, self.corruption.get_level())
-                            self.ui.post_message_from_humblr(f"[WEBCAM] {analysis}")
-                    elif self.corruption.get_level() < 30 and self.system.get_webcam_status() and random.random() < 0.1:
-                        self.system.set_webcam(False)  # turn off at low corruption sometimes
-
                 # Always make presence known: periodic forced awareness on secondary
                 if can_be_aggressive and random.random() < 0.03:
                     self._force_presence_on_secondary(activity or {})
@@ -273,23 +260,19 @@ class HumblrApp:
                 if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})
 
-                # Webcam: Random on/off to watch them. Ensure access and analyze.
-                if self.config.get("webcam", {}).get("enabled", False) and can_be_aggressive:
-                    if self.corruption.get_level() > 20 and not self.system.get_webcam_status() and random.random() < 0.08:
+                # Webcam: stable on when appropriate, avoid flip-flop. Only on at high corruption, off only at very low.
+                webcam_cfg = self.config.get("webcam", {})
+                if webcam_cfg.get("enabled", False) and can_be_aggressive:
+                    level = self.corruption.get_level()
+                    is_on = self.system.get_webcam_status()
+                    if level > 40 and not is_on and random.random() < 0.05:
                         self.system.set_webcam(True)
-                        frame = self.system.capture_webcam_frame("autonomous_watch")
-                        if frame and self.ui:
-                            reaction = self.ai.analyze_screenshot(frame, activity or {}, self.corruption.get_level())
-                            self.ui.post_message_from_humblr(f"[WEBCAM WATCH] {reaction}")
-                    elif self.corruption.get_level() < 25 and self.system.get_webcam_status() and random.random() < 0.15:
+                        frame = self.system.capture_webcam_frame("watch")
+                        if frame and self.ui and self.ui.is_ready():
+                            analysis = self.ai.analyze_screenshot(frame, activity or {}, level)
+                            self.ui.post_message_from_humblr(f"[WEBCAM] I can see you: {analysis}")
+                    elif level < 15 and is_on and random.random() < 0.05:
                         self.system.set_webcam(False)
-
-                # Periodic webcam capture to read/see you
-                if self.system.get_webcam_status() and random.random() < 0.04:
-                    frame = self.system.capture_webcam_frame("watch")
-                    if frame and self.ui and self.ui.is_ready():
-                        analysis = self.ai.analyze_screenshot(frame, activity or {}, self.corruption.get_level())
-                        self.ui.post_message_from_humblr(f"[WEBCAM] I can see you: {analysis}")
 
                 # Force presence on second monitor (popups, UI lift, comments).
                 if can_be_aggressive and random.random() < 0.12:
