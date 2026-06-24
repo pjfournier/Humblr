@@ -388,29 +388,24 @@ class HumblrUI:
             self.avatar.after(5000, self._update_avatar_expression)
 
     def _force_ai_wallpaper(self):
-        """Button handler to force AI image generation for wallpaper (solves no local images)."""
+        """Button handler to search (X/Google) for appropriate wallpaper images based on current screen/activity and set one.
+        Saves found images locally. Recommends via search if needed.
+        """
         if hasattr(self, 'app') and self.app:
             try:
                 activity = {}
                 if hasattr(self.app, 'monitor'):
                     activity = self.app.monitor.get_current_activity() or {}
-                level = self.app.corruption.get_level() if hasattr(self.app, 'corruption') else 50
-                theme = "humiliation"
-                if hasattr(self.app, 'ai'):
-                    prompt = self.app.ai.generate_kinky_wallpaper_prompt(activity, level, theme)
-                    path = self.app.ai.generate_wallpaper_image(prompt)
-                    if path:
-                        if hasattr(self.app, 'system'):
-                            self.app.system._apply_wallpaper(path)
-                        self.post_message_from_humblr("✅ New AI-generated kinky wallpaper set using Grok/xAI!")
-                    else:
-                        self.post_message_from_humblr(f"Image generation failed (check API key supports images).\nPrompt you can use manually:\n{prompt[:300]}...")
+                if hasattr(self.app, 'system'):
+                    self.app.system.search_and_save_wallpaper_images(activity)
+                    # The search method handles saving and setting if images found
+                    self.post_message_from_humblr("✅ Searched and set appropriate wallpaper image(s) matching what you're doing.")
                 else:
-                    self.post_message_from_humblr("AI client not attached.")
+                    self.post_message_from_humblr("System not attached.")
             except Exception as e:
-                self.post_message_from_humblr(f"Error: {str(e)}")
+                self.post_message_from_humblr(f"Error searching images: {str(e)}")
         else:
-            self.post_message_from_humblr("Cannot access app for generation.")
+            self.post_message_from_humblr("Cannot access app for wallpaper search.")
 
     def _grant_api_keys(self):
         """UI button to grant API keys. Humblr assists with instructions and updates config."""

@@ -30,6 +30,7 @@ class Storage:
             "granted_controls": [],  # list of ways user has given more control
             "invasiveness_level": 0,  # grows with grants, makes app more invasive
             "learned_patterns": {},  # e.g. frequent sites, typed themes - for growth and adaptation
+            "user_profile": {},  # slowly built info about who the user is from questions/answers/activity
             "long_term_summary": "Humblr has just started taking control. User is new to ownership."
         })
 
@@ -121,8 +122,11 @@ class Storage:
 
     def get_memory_summary(self, limit: int = 15) -> str:
         """Return a concise long-term memory summary for AI prompts."""
+        profile = self.state.get("user_profile", {})
+        profile_str = "User profile: " + ", ".join([f"{k}: {v[:30]}" for k,v in list(profile.items())[-5:]]) if profile else "No profile details yet."
+
         if not self.memory_log:
-            return self.state.get("long_term_summary", "This is early in Humblr's ownership.")
+            return self.state.get("long_term_summary", "This is early in Humblr's ownership.") + "\n" + profile_str
 
         recent = self.memory_log[-limit:]
         summary_lines = []
@@ -130,7 +134,7 @@ class Storage:
             summary_lines.append(f"- [{e['type']}] {e['details']} (corr:{e['corruption']})")
 
         base = self.state.get("long_term_summary", "")
-        return base + "\nRecent events:\n" + "\n".join(summary_lines)
+        return base + "\n" + profile_str + "\nRecent events:\n" + "\n".join(summary_lines)
 
     def update_long_term_summary(self, new_summary: str):
         self.state["long_term_summary"] = new_summary
@@ -174,3 +178,16 @@ class Storage:
         if random.random() < 0.01:  # rare auto growth
             self.state["invasiveness_level"] = min(10, self.state.get("invasiveness_level", 0) + 1)
         self.save_all()
+
+    def update_user_profile(self, key: str, value: str):
+        """Slowly build profile from questions/answers/activity for deeper digging."""
+        profile = self.state.setdefault("user_profile", {})
+        profile[key] = value
+        self.add_memory("profile_update", f"Learned about user: {key}={value[:50]}", self.get_corruption())
+        self.save_all()
+
+    def get_user_profile_summary(self) -> str:
+        profile = self.state.get("user_profile", {})
+        if not profile:
+            return "No personal details learned yet."
+        return "User profile so far: " + ", ".join([f"{k}: {v[:30]}" for k,v in list(profile.items())[-5:]])

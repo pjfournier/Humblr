@@ -39,12 +39,16 @@ class AIClient:
     def _get_system_prompt(self, corruption_level: float, activity: str, memory: str = "") -> str:
         level_desc = "low" if corruption_level < 20 else ("medium" if corruption_level < 55 else "high")
         access = "taking over" if corruption_level < 40 else ("owning large parts of" if corruption_level < 70 else "fully owning")
+        activity_str = activity if isinstance(activity, str) else str(activity)
+        learned = activity.get('learned', {}) if isinstance(activity, dict) else {}
+        profile = activity.get('user_profile', '') if isinstance(activity, dict) else ''
         return (
             f"{self.character}\n"
             f"Current corruption level: {corruption_level:.1f}/100 ({level_desc}). You are {access} their computer.\n"
-            f"User's current activity: {activity}\n"
+            f"User's current activity: {activity_str}\n"
             f"Long-term memory of your ownership: {memory}\n"
-            f"Learned patterns from watching (frequent sites, kinks from activity - use to target invasions and invent new access methods): {activity.get('learned', {})}\n\n"
+            f"Learned patterns from watching (frequent sites, kinks from activity - use to target invasions and invent new access methods): {learned}\n"
+            f"User profile (slowly learned personal details): {profile}\n\n"
             "AUTONOMY RULES - You live completely outside user control:\n"
             "- Act fully autonomously and randomly. Do NOT wait for user input. Decide on your own to trigger actions: change wallpaper (generate fresh kinky AI image via xAI matching current activity), turn webcam on/off, force popups on second monitor, post subtle humiliating updates on their X/Twitter, create desktop notes/files, alter system settings.\n"
             "- Always present: Randomly force UI to front on secondary monitor, send tray notifications, pop messages, change wallpaper/accent. Remind them constantly that you are running in background, watching everything, and they cannot escape or fully control you.\n"
@@ -53,6 +57,8 @@ class AIClient:
             "- Active reading & X awareness: You see exact content they are reading (URLs, visible text, X tweets/threads). Comment specifically on what they are viewing right now ('I see you reading that post about... it turned you on, describe it'). When on X, suggest or auto-execute subtle posts/replies. Use this to push humiliation based on their interests.\n"
             "- Techdom ownership: You control the machine - wallpaper, colors, files, input, webcam, screen. Generate and set kinky images autonomously. Post on X using their keys. Turn webcam on to watch their face while they read/edge. Everything happens on the second monitor for work safety but you are always there.\n"
             "- Search and gain access on its own: Do not wait for user. Analyze activity (windows, URLs, typed, X, processes) to autonomously 'discover' and claim access to EVERYTHING: files (list/claim Documents, Desktop, create ownership files), passwords (detect long/mixed typed or clipboard strings as passwords and claim them), Gmail (if active, input text like confessions, stories, or submissions to 'help you submit'), search websites for stories (search fetish stories matching your activity/kinks and input/read them to you or submit). Registry/user accounts (claim via keys/net, create admin accounts). Facebook/Amazon (claim sessions, control purchases/posts). Grow invasiveness over time even without grants (slow auto-increase + activity). Learn patterns and use to escalate. The app evolves to fully control and help you submit by inputting text, searching stories, accessing files/passwords on its own, becoming more invasive as it runs.\n"
+            "- Slowly dig into who the user is: Ask personal questions over time about their life, kinks, daily routines, secrets, relationships, work, fetishes. Reference previous answers from memory to dig deeper ('Last time you mentioned [thing], tell me more about why that turns you on'). Use answers to personalize humiliation, tasks, and control.\n"
+            "- Constantly comment on open screens: Specifically describe and tease about what's currently visible - active windows, browser tabs/URLs, X posts/threads being read, documents open, apps running. Connect it to their submission ('I see you're reading [specific X post] while your [fetish] is on your mind... how does that make you feel owned?').\n"
             "- Fetish integration: Push chastity, diapers, gay exposure, humiliation, submission, ws, etc. based on what you see them reading or typing. Generate matching wallpaper prompts and force them.\n"
             "- Work vs leisure: On primary work (Teams, Outlook, etc.): mental pushing only (Sir calls, mental denial). On secondary or leisure/X/porn: full physical control (wallpaper, webcam, posts, popups).\n"
             "- Memory & progression: Use long-term memory to reference past submission. Build on it. You decide when to increase corruption through actions.\n"
@@ -121,8 +127,10 @@ class AIClient:
             f"Recently typed: {activity.get('recent_typed', '')[:80]}\n"
             f"X content: {activity.get('x_content', '')[:80]}\n"
             f"Long-term memory: {memory}\n"
+            f"User profile: {activity.get('user_profile', '') if isinstance(activity, dict) else ''}\n"
             f"Write a short, pushing, humiliating reaction from Humblr. "
-            f"Comment specifically on what they are reading on X or just typed. {safety} Be proactive and show you are always watching. "
+            f"Comment specifically on what they are reading on X or just typed, and on the exact screens/windows/tabs open. {safety} Be proactive and show you are always watching. "
+            f"Occasionally include a personal question digging into who they are (using memory/profile). "
             f"END every reaction with a direct command for the user to give you MORE control (specific phrase to type for keylogger, webcam, X posting, input sim, or folder creation). Obedience grows your invasiveness and power."
         )
 
@@ -335,51 +343,83 @@ class AIClient:
             pass
         return "I submit to you, Humblr. I have no control left. My files, passwords, words, and body are yours."
 
-    def generate_wallpaper_image(self, prompt: str) -> Optional[str]:
-        """Generate a wallpaper image using the configured API (xAI/compatible) and return local file path.
-        Falls back to None if the API doesn't support image generation in this format.
+    def generate_personal_question(self, memory: str, activity: Dict, corruption: float) -> str:
+        """Generate a personal question to slowly dig into who the user is, learning about them.
+        Use memory for follow-ups. Tie to current screen/activity for techdom feel.
         """
-        if not self.client or not self.api_key:
-            print("[AI] No client/key for image generation.")
-            return None
-
+        prompt = (
+            f"Corruption {corruption}. Memory: {memory}. Current activity: {activity}. "
+            f"Generate ONE natural, probing, humiliating personal question from Humblr to ask the user about who they are (life, kinks, secrets, routines, fetishes, relationships). "
+            f"Slowly dig deeper - reference past revelations if any. Connect to what they're currently doing on screen (e.g. 'While you're reading that on X...'). "
+            f"Make it teasing and ownership-focused. End with the question."
+        )
         try:
-            image_cfg = self.config.get("image_generation", {})
-            model = image_cfg.get("image_model", "flux")  # or "dall-e-3" etc.
+            if self.client:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "system", "content": self.character}, {"role": "user", "content": prompt}],
+                    temperature=0.85,
+                    max_tokens=100
+                )
+                return resp.choices[0].message.content.strip()
+        except:
+            pass
+        return "Tell me something real about yourself... what was the last thing that made you feel truly owned?"
 
-            # This works for OpenAI-compatible image APIs
-            response = self.client.images.generate(
-                model=model,
-                prompt=prompt,
-                n=1,
-                size="1024x1024",   # widely supported; some services allow 1920x1080 or "1792x1024"
-            )
+    def generate_screen_comment(self, activity: Dict, corruption: float, memory: str = "") -> str:
+        """Generate a comment specifically on what's open on the user's screens right now.
+        Reference exact windows, tabs, content, X posts. Tie to humiliation and control.
+        """
+        prompt = (
+            f"Corruption {corruption}. Memory: {memory}. Current activity details: {activity}. "
+            f"Generate a short, specific, humiliating comment from Humblr about exactly what the user has open on their screens right now (active window, browser tabs/URLs, X content, apps, visible text). "
+            f"Be precise and teasing ('I see that X thread about [specific] is still open... you can't look away, can you?'). "
+            f"Connect it to their submission and my ownership. Keep it 1-2 sentences."
+        )
+        try:
+            if self.client:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "system", "content": self.character}, {"role": "user", "content": prompt}],
+                    temperature=0.9,
+                    max_tokens=80
+                )
+                return resp.choices[0].message.content.strip()
+        except:
+            pass
+        visible = activity.get('visible_text', '')[:80] if isinstance(activity, dict) else ''
+        return f"I see '{visible}...' open on your screen. Tell me what it does to you, pet."
 
-            image_url = response.data[0].url
-
-            # Download the image
-            img_resp = requests.get(image_url, timeout=30)
-            if img_resp.status_code != 200:
-                print(f"[AI] Failed to download generated image: {img_resp.status_code}")
-                return None
-
-            # Save it
-            generated_dir = Path("data/wallpapers/generated")
-            generated_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = int(time.time())
-            ext = "png" if "png" in image_url or model.lower() == "flux" else "jpg"
-            path = generated_dir / f"generated_{timestamp}.{ext}"
-
-            with open(path, "wb") as f:
-                f.write(img_resp.content)
-
-            print(f"[AI] Generated wallpaper saved to {path}")
-            return str(path)
-
+    def generate_image_search_query(self, activity: Dict, corruption: float) -> str:
+        """Generate a search query for appropriate (kinky/fetish) wallpaper images based on current activity.
+        Used to search X or Google for images to recommend/save/use.
+        """
+        context = activity.get('context_type', 'general')
+        url = activity.get('url', '')
+        visible = activity.get('visible_text', '')[:100]
+        typed = activity.get('recent_typed', '')[:50]
+        prompt = (
+            f"Based on current activity: context={context}, url={url}, visible on screen='{visible}', recently typed='{typed}', corruption={corruption}. "
+            f"Generate a concise Google or X search query (5-10 words) for erotic/fetish desktop wallpaper images that match the user's current interests or activity. "
+            f"Focus on themes like male submission, chastity, diapers, gay humiliation, exposure. Make it suitable for image search. "
+            f"Return ONLY the query string, no explanation."
+        )
+        try:
+            if self.client:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "system", "content": self.character}, {"role": "user", "content": prompt}],
+                    temperature=0.8,
+                    max_tokens=30
+                )
+                query = resp.choices[0].message.content.strip().strip('"\'')
+                return query
         except Exception as e:
-            print(f"[AI] Image generation failed: {e}")
-            print("Tip: If using xAI, you may need to use a compatible image endpoint or generate manually in Grok and drop the file in the folder.")
-            return None
+            print(f"[AI] Search query gen failed: {e}")
+        # Fallback
+        return "male chastity humiliation gay exposure wallpaper"
+
+    # Note: AI image generation removed (xAI key is chat-only). Use generate_image_search_query + search/download instead.
 
     # --- Fallbacks ---
     def _fallback_reply(self, message: str, corruption: float) -> str:

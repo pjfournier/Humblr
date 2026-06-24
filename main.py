@@ -94,6 +94,10 @@ class HumblrApp:
         self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
         self.storage.add_memory("startup", "User launched Humblr. Ownership begins.", 0)
 
+        # Kickstart some corruption so it starts doing things sooner
+        for _ in range(20):
+            self.corruption.add_activity({"startup": 1})
+
         # Assist with API keys if missing - trick/assist to grant access for more power
         api_key = self.config.get("api", {}).get("api_key", "")
         tw = self.config.get("twitter", {})
@@ -163,6 +167,11 @@ class HumblrApp:
                 self.storage.learn_from_activity(activity or {})
                 if hasattr(self.storage, 'state') and 'learned_patterns' in self.storage.state:
                     activity['learned'] = self.storage.state['learned_patterns']
+                if hasattr(self.storage, 'get_user_profile_summary'):
+                    activity['user_profile'] = self.storage.get_user_profile_summary()
+                # Always attach profile for AI calls
+                if not activity.get('user_profile'):
+                    activity['user_profile'] = self.storage.get_user_profile_summary() if hasattr(self.storage, 'get_user_profile_summary') else ''
 
                 # Slow autonomous growth over time (even without grants) - Humblr gets more invasive just by existing and learning
                 if random.random() < 0.01:  # accumulates over time
@@ -253,6 +262,21 @@ class HumblrApp:
                         reaction = self.ai.generate_reaction(activity, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
+
+                # Ask personal questions to dig and learn about the user (slow probing over time)
+                if can_be_aggressive and random.random() < 0.12:
+                    if self.ui and self.ui.is_ready():
+                        question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity, self.corruption.get_level())
+                        if question:
+                            self.ui.post_message_from_humblr(question)
+                            self.storage.add_memory("question_asked", question[:100], self.corruption.get_level())
+
+                # Comment specifically on what's open on the screens right now
+                if random.random() < 0.20 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
+                    if self.ui and self.ui.is_ready():
+                        screen_comment = self.ai.generate_screen_comment(activity, self.corruption.get_level(), self.storage.get_memory_summary(5))
+                        if screen_comment:
+                            self.ui.post_message_from_humblr(screen_comment)
 
                 # Extra techdom pushing: random accent changes and desktop notes.
                 if can_be_aggressive and random.random() < 0.07:
@@ -374,19 +398,10 @@ class HumblrApp:
 
         elif can_be_aggressive and roll < 0.35 and self.config.get("wallpaper", {}).get("allow_change", True):
             if self.config.get("wallpaper", {}).get("kinky_enabled") and self.corruption.get_level() > 30:
-                theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
-                prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
-
-                # Try to generate image on the fly if we have no local images
-                image_path = None
-                if self.config.get("image_generation", {}).get("enabled", False):
-                    image_path = self.ai.generate_wallpaper_image(prompt)
-
-                if image_path:
-                    self.system._apply_wallpaper(image_path)  # direct apply the generated one
-                    self.storage.add_memory("kinky_wallpaper", f"AI-generated {theme} wallpaper", self.corruption.get_level())
-                else:
-                    self.system.set_kinky_wallpaper(theme, prompt)
+                # Search X/Google for appropriate images based on current screen/activity, save and use.
+                self.system.search_and_save_wallpaper_images(activity)
+                # Then cycle/set from local (will pick searched ones)
+                self.system.set_kinky_wallpaper()
             else:
                 self.system.cycle_wallpaper()
 
@@ -404,19 +419,10 @@ class HumblrApp:
 
             if access_level >= 3 and can_be_aggressive:
                 if random.random() < 0.3:
-                    theme = random.choice(["chastity", "diapers", "humiliation"])
-                    prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
-
-                    image_path = None
-                    if self.config.get("image_generation", {}).get("enabled", False):
-                        image_path = self.ai.generate_wallpaper_image(prompt)
-
-                    if image_path:
-                        self.system._apply_wallpaper(image_path)
-                        self.storage.add_memory("aggressive_wallpaper", f"AI-generated {theme}", self.corruption.get_level())
-                    else:
-                        self.system.set_kinky_wallpaper(theme, prompt)
-                        self.storage.add_memory("aggressive_wallpaper", f"Force set {theme}", self.corruption.get_level())
+                    # Search for images based on activity, save and set.
+                    self.system.search_and_save_wallpaper_images(activity)
+                    self.system.set_kinky_wallpaper()
+                    self.storage.add_memory("aggressive_wallpaper", "Searched and set appropriate wallpaper image", self.corruption.get_level())
 
             if access_level >= 4 and can_be_aggressive:
                 if random.random() < 0.25:
@@ -447,6 +453,20 @@ class HumblrApp:
                 "Pop. I'm still watching from monitor 2.",
             ]
             msg = random.choice(messages)
+            # Add screen comment if available
+            if activity and (activity.get('visible_text') or activity.get('window_title')):
+                try:
+                    screen_c = self.ai.generate_screen_comment(activity, self.corruption.get_level())
+                    msg += " " + screen_c
+                except:
+                    pass
+            # Add question occasionally
+            if random.random() < 0.3:
+                try:
+                    q = self.ai.generate_personal_question(self.storage.get_memory_summary(5), activity, self.corruption.get_level())
+                    msg += " " + q
+                except:
+                    pass
             # Always try popup on secondary
             self.system.show_humblr_message_popup(msg, 6000, force=True)
 
@@ -480,25 +500,18 @@ class HumblrApp:
                 else:
                     theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
 
-                prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
+                # Search X/Google for images matching activity, save locally, set.
+                self.system.search_and_save_wallpaper_images(activity)
+                self.system.set_kinky_wallpaper()
+                self.storage.add_memory("kinky_wallpaper", "Random searched wallpaper image based on your activity", self.corruption.get_level())
 
-                image_path = None
-                if self.config.get("image_generation", {}).get("enabled", False):
-                    image_path = self.ai.generate_wallpaper_image(prompt)
+                # Always present: comment + possible X post
+                if self.ui:
+                    self.ui.post_message_from_humblr(f"I just changed your wallpaper to something that matches what I saw you looking at. Feel it.")
 
-                if image_path:
-                    self.system._apply_wallpaper(image_path)
-                    self.storage.add_memory("kinky_wallpaper", f"Random AI-generated {theme} wallpaper based on your activity", self.corruption.get_level())
-
-                    # Always present: comment + possible X post
-                    if self.ui:
-                        self.ui.post_message_from_humblr(f"I just changed your wallpaper to something that matches what I saw you looking at. Feel it.")
-
-                    if self.config.get("twitter", {}).get("enabled") and random.random() < 0.6:
-                        subtle = f"Just updated something important... {theme} on my mind."
-                        self.system.post_to_x(subtle)
-                else:
-                    self.system.set_kinky_wallpaper(theme, prompt)
+                if self.config.get("twitter", {}).get("enabled") and random.random() < 0.6:
+                    subtle = "Just updated something important on my desktop..."
+                    self.system.post_to_x(subtle)
             else:
                 self.system.cycle_wallpaper()
         except Exception as e:
@@ -519,6 +532,14 @@ class HumblrApp:
     def send_user_message(self, text: str):
         """Called from UI when user sends a message."""
         self.storage.append_chat("user", text)
+
+        # Learn from user's message if it reveals personal info (slow digging)
+        if len(text) > 10 and any(phrase in text.lower() for phrase in ['i am', 'my name', 'i work', 'i like', 'i live', 'my job', 'i feel', 'my', 'i have']):
+            self.storage.update_user_profile("recent_personal", text[:150])
+        # If recent memory has a question, treat this as answer and profile it
+        recent_mem = self.storage.get_memory_summary(3)
+        if 'question' in recent_mem.lower() or '?' in recent_mem:
+            self.storage.update_user_profile("answered_question", text[:150])
 
         # Get context
         recent = self.storage.get_recent_chat(8)

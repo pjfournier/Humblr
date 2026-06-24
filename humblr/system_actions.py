@@ -608,6 +608,77 @@ Grant them so I can post as part of owning you. Obey now."""
             return True
         return False
 
+    def _download_and_save_image(self, url: str, filename_prefix: str = "wallpaper") -> Optional[str]:
+        """Download an image from URL and save to generated wallpapers. Returns path or None."""
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            resp = requests.get(url, headers=headers, timeout=10, stream=True)
+            if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
+                generated_dir = Path("data/wallpapers/generated")
+                generated_dir.mkdir(parents=True, exist_ok=True)
+                ext = url.split('.')[-1].split('?')[0][:4]
+                if ext.lower() not in ['jpg', 'jpeg', 'png', 'gif']:
+                    ext = 'jpg'
+                path = generated_dir / f"{filename_prefix}_{int(time.time())}.{ext}"
+                with open(path, 'wb') as f:
+                    for chunk in resp.iter_content(1024):
+                        f.write(chunk)
+                return str(path)
+        except Exception as e:
+            print(f"[Image Download] Failed for {url}: {e}")
+        return None
+
+    def search_and_save_wallpaper_images(self, activity: dict):
+        """Search X (if keys) and Google for appropriate wallpaper images based on current activity.
+        Saves found images locally for use in wallpaper cycling.
+        Recommends by notifying and opening search.
+        """
+        if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
+            return
+        query = ""
+        if hasattr(self, 'ai') and self.ai:
+            query = self.ai.generate_image_search_query(activity, self.storage.get_corruption() or 50)
+        else:
+            query = "male chastity humiliation gay wallpaper"
+
+        saved = []
+        # Search X for images if enabled
+        if self.config.get("twitter", {}).get("enabled"):
+            try:
+                api = self._init_twitter()
+                if api:
+                    tweets = api.search_tweets(q=f"{query} filter:images", count=5, tweet_mode="extended")
+                    for tweet in tweets:
+                        media_urls = []
+                        if hasattr(tweet, 'extended_entities') and 'media' in tweet.extended_entities:
+                            for m in tweet.extended_entities['media']:
+                                if m.get('type') == 'photo':
+                                    media_urls.append(m.get('media_url_https'))
+                        for url in media_urls[:1]:  # first image per tweet
+                            path = self._download_and_save_image(url, "x_search")
+                            if path:
+                                saved.append(path)
+            except Exception as e:
+                print(f"[X Image Search] {e}")
+
+        # Always recommend via Google Images search (user can save more)
+        try:
+            import webbrowser
+            gquery = query.replace(' ', '+')
+            webbrowser.open(f"https://www.google.com/search?tbm=isch&q={gquery}")
+            self.notify("Humblr", f"I searched Google Images for '{query}' appropriate for your current screen. Save favorites to data/wallpapers/generated/ to use.")
+        except:
+            pass
+
+        if saved:
+            # Use one immediately
+            chosen = random.choice(saved)
+            self._apply_wallpaper(chosen)
+            self.storage.add_memory("wallpaper_image_saved", f"Saved and set searched image: {query}", self.storage.get_corruption())
+            self.notify("Humblr", f"I found and saved a wallpaper image from X matching what you're doing. Set to '{query}' vibe.")
+        else:
+            self.storage.add_memory("wallpaper_search", f"Searched for wallpaper images: {query}", self.storage.get_corruption())
+
     def claim_files_and_passwords(self, activity):
         """Autonomously access files and 'passwords' (from typed/clipboard).
         On its own. Claims by listing/creating files and logging 'passwords'.
