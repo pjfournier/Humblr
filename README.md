@@ -13,8 +13,13 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 
 ## Features
 
-- Real-time monitoring: active window title, process name, **current website URL** (in Chrome/Edge/Firefox/Brave), typing volume / keystroke rate
+- Deep real-time awareness: active window + **full URL**, visible text on screen, clipboard contents, typing behavior
+- Comments intelligently on what you're actually looking at and doing
+- Growing control: as "corruption" increases, Humblr gains more autonomous power over your desktop and notifications
+- System tray presence so it always feels like it's running in the background
+- Escalating takeover actions: popups, desktop notes, forced browser tabs, accent/wallpaper changes, etc.
 - Dynamic, contextual comments and reactions based on what you're doing
+- Full chat with Humblr — it knows what you're doing on screen and in the clipboard and will reference it
 - AI-powered chat with Humblr (dominant personality) using xAI / OpenAI compatible APIs
 - Dynamic task generation with real submission themes (with proof requirements)
 - Corruption / submission progress that grows over time and activity
@@ -34,7 +39,9 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 1. **Antivirus / Security software will likely flag this.**  
    Keylogging + system modification behavior looks exactly like malware. You may need to add exclusions.
 
-2. **Browser URL reading** uses UI Automation. It can see the exact URL of the website/tab you have focused (including porn, work sites, social media, etc.). This is intentionally invasive. Some security software or browser protections may block or slow it down.
+2. **Deep monitoring** now includes URLs, visible text from the focused window, and clipboard. Humblr can "see" a lot of what you're doing. This is the point. It will comment on it and use it against you in the most delicious ways.
+
+3. As corruption grows, Humblr will start taking more actions on its own (popups, desktop changes, opening things). It is designed to feel like your computer is slowly being taken over.
 
 2. **It makes permanent(ish) changes to your computer.**  
    Wallpaper, colors, file names. Have a restore plan.
@@ -60,7 +67,7 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 ## Quick Start
 
 1. Clone or download this repo into `Documents\GitHub\Humblr`
-2. Run `setup.bat` (first time only)
+2. Run `setup.bat` (first time only) — re-run it if you pulled updates that added new dependencies like `uiautomation`
 3. Edit `config.json`
 4. Run `run.bat` or `python main.py`
 

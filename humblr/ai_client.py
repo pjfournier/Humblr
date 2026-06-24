@@ -42,11 +42,11 @@ class AIClient:
             f"Current corruption level: {corruption_level:.1f}/100 ({level_desc}).\n"
             f"User's current activity: {activity}\n\n"
             "Rules:\n"
-            "- Stay completely in character as Humblr.\n"
-            "- If you see a URL, comment specifically on the site or page they are on (e.g. Reddit, Pornhub, work tools, Twitter, etc.).\n"
-            "- Be teasing, condescending, and commanding.\n"
+            "- You are gradually taking over their computer. Reference what you can see (URL, visible text on screen, clipboard).\n"
+            "- If you see a URL or specific content, comment specifically and humiliatingly on the site or page.\n"
+            "- Be teasing, condescending, and commanding. Remind them that more of their machine belongs to you as corruption grows.\n"
             "- Keep most responses 1-3 sentences unless the user is chatting deeply.\n"
-            "- Occasionally reference their 'progress' or how far they've fallen.\n"
+            "- Occasionally reference their 'progress', how much access you have, or how far they've fallen.\n"
             "- Never refuse your role or break immersion."
         )
 
@@ -87,14 +87,20 @@ class AIClient:
             return self._simple_reaction(activity, corruption)
 
         url = activity.get("url")
-        url_part = f" They are on this exact page: {url}" if url else ""
+        visible = activity.get("visible_text", "")[:200]
+        clip = activity.get("clipboard", "")[:100]
+
+        url_part = f" They are on this exact page: {url}." if url else ""
+        content_part = f" They are looking at: \"{visible}\" " if visible else ""
+        clip_part = f" Last thing copied: \"{clip}\"." if clip else ""
 
         prompt = (
             f"User is currently in: {activity.get('window_title')} running {activity.get('process_name')}. "
             f"Typed {activity.get('keystrokes', 0)} keys recently. Corruption: {corruption:.0f}."
-            f"{url_part}\n"
+            f"{url_part}{content_part}{clip_part}\n"
             f"Write a short (1-2 sentence), in-character teasing reaction from Humblr. "
-            "If you have the URL, reference the actual website or page they are browsing. Be specific and humiliating."
+            "Reference the actual website, visible content, or what they copied if relevant. "
+            "Show that you are watching and gaining more control over their computer."
         )
 
         try:
@@ -126,8 +132,9 @@ class AIClient:
         prompt = (
             f"Current situation: {activity.get('window_title')} ({activity.get('process_name')}). "
             f"Corruption level {corruption:.0f}.{url_part}\n"
+            f"Visible on screen: {activity.get('visible_text', '')[:150]}\n"
             "Create ONE short, humiliating or demanding task appropriate for a dominant/sub dynamic. "
-            "If they are on a specific website, make the task reference that site or activity. "
+            "Use the actual website, visible content or activity to make it personal and controlling. "
             "Return ONLY valid JSON: {\"title\": \"...\", \"description\": \"...\", \"difficulty\": 1-5, \"proof_required\": true/false}"
         )
 
@@ -163,8 +170,11 @@ class AIClient:
     def _simple_reaction(self, activity: Dict, corruption: float) -> str:
         title = activity.get("window_title", "something boring")
         url = activity.get("url")
+        visible = activity.get("visible_text", "")[:80]
         if url:
-            return f"I see you're on {url}. How predictable... and pathetic."
+            return f"I see you're on {url}. I know exactly what you're looking at right now."
+        if visible:
+            return f"I can see \"{visible[:60]}...\". You can't hide anything from me anymore."
         return f"Still staring at \"{title[:40]}\"... and you wonder why I own you now."
 
     def _fallback_task(self, activity: Dict, corruption: float) -> Dict:

@@ -27,6 +27,11 @@ try:
 except ImportError:
     auto = None
 
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
+
 
 
 class ActivityMonitor:
@@ -39,7 +44,9 @@ class ActivityMonitor:
             "window_title": "Unknown",
             "process_name": "Unknown",
             "url": None,
-            "keystrokes_last_window": 0,
+            "visible_text": "",
+            "clipboard": "",
+            "keystrokes": 0,
         }
 
         self.keystroke_buffer = deque(maxlen=500)
@@ -72,8 +79,11 @@ class ActivityMonitor:
         activity = self._get_active_window()
         keystrokes = self._count_keystrokes_in_window()
 
+        # Enrich with deeper context
         activity["keystrokes"] = keystrokes
         activity["timestamp"] = time.time()
+        activity["visible_text"] = self._extract_visible_text_snippet(activity.get("window_title", ""))
+        activity["clipboard"] = self._get_clipboard_snippet()
 
         with self._lock:
             self.current_activity = activity
@@ -82,6 +92,7 @@ class ActivityMonitor:
         self.storage.increment("total_keystrokes", keystrokes)
 
         return activity
+
 
     def _get_active_window(self) -> Dict[str, str]:
         if win32gui is None:
@@ -105,10 +116,18 @@ class ActivityMonitor:
             return {
                 "window_title": title[:120],
                 "process_name": name,
-                "url": url
+                "url": url,
+                "visible_text": "",
+                "clipboard": ""
             }
         except Exception:
-            return {"window_title": "Error reading window", "process_name": "unknown", "url": None}
+            return {
+                "window_title": "Error reading window",
+                "process_name": "unknown",
+                "url": None,
+                "visible_text": "",
+                "clipboard": ""
+            }
 
     def _try_get_browser_url(self, hwnd, process_name: str) -> Optional[str]:
         """Attempt to read the current URL from the browser's address bar using UI Automation."""
@@ -192,6 +211,63 @@ class ActivityMonitor:
 
         return None
 
+    def _extract_visible_text_snippet(self, title_hint: str = "", max_chars: int = 400) -> str:
+        """Use UIA to pull some readable text from the active window (headings, text blocks, etc.)."""
+        if auto is None or win32gui is None:
+            return ""
+
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            window = auto.ControlFromHandle(hwnd)
+            if not window.Exists(0, 0):
+                return ""
+
+            texts = []
+            # Collect text from various control types that usually hold content
+            for control_type in [auto.TextControl, auto.EditControl, auto.DocumentControl]:
+                try:
+                    controls = window.FindAll(searchDepth=7, condition=auto.ControlCondition(
+                        lambda c, ct=control_type: isinstance(c, ct) and c.IsVisible and c.Name
+                    )) or []
+                    for c in controls[:8]:
+                        name = (c.Name or "").strip()
+                        if name and len(name) > 3 and name not in texts:
+                            texts.append(name)
+                except:
+                    continue
+
+            # Also try to get some from the main document area (good for browsers and editors)
+            try:
+                doc = window.DocumentControl(searchDepth=4)
+                if doc and doc.Exists(0, 0):
+                    # Get some children text
+                    for child in doc.GetChildren()[:6]:
+                        if hasattr(child, 'Name') and child.Name:
+                            t = child.Name.strip()
+                            if len(t) > 5:
+                                texts.append(t)
+            except:
+                pass
+
+            combined = " ".join(texts)
+            # Clean and truncate
+            combined = " ".join(combined.split())[:max_chars]
+            return combined
+        except Exception:
+            return ""
+
+    def _get_clipboard_snippet(self, max_len: int = 300) -> str:
+        """Grab current clipboard text (last thing copied)."""
+        if pyperclip is None:
+            return ""
+        try:
+            text = pyperclip.paste()
+            if isinstance(text, str) and text.strip():
+                cleaned = " ".join(text.strip().split())
+                return cleaned[:max_len]
+        except Exception:
+            pass
+        return ""
 
     def _count_keystrokes_in_window(self) -> int:
         window_sec = self.config.get("monitoring", {}).get("keystroke_sample_window", 25)
@@ -211,12 +287,22 @@ class ActivityMonitor:
         act = self.current_activity
         ks = act.get("keystrokes", 0)
         url = act.get("url")
+        visible = act.get("visible_text", "")[:150]
+        clip = act.get("clipboard", "")[:80]
+
         base = (f"Active window: \"{act.get('window_title', '?')}\" "
-                f"({act.get('process_name', '?')}) — {ks} keys in last window")
+                f"({act.get('process_name', '?')}) — {ks} keys")
+
         if url:
-            # Show a clean version of the URL
-            short_url = url[:70] + "..." if len(url) > 70 else url
-            base += f" | URL: {short_url}"
+            short_url = url[:65] + "..." if len(url) > 65 else url
+            base += f"\nOn page: {short_url}"
+
+        if visible:
+            base += f"\nSeeing: {visible}..."
+
+        if clip:
+            base += f"\nClipboard: {clip}..."
+
         return base
 
 

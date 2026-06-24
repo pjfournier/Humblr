@@ -23,7 +23,7 @@ class HumblrUI:
         self.system = system
 
         self.root = ctk.CTk()
-        self.root.title("Humblr")
+        self.root.title("Humblr — Your Computer")
         self.root.geometry(f"{config['ui']['window_width']}x{config['ui']['window_height']}")
         self.root.resizable(True, True)
 
@@ -44,7 +44,7 @@ class HumblrUI:
         self.title_label = ctk.CTkLabel(top, text="Humblr", font=("Segoe UI", 22, "bold"), text_color=accent)
         self.title_label.pack(side="left", padx=10)
 
-        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0", font=("Segoe UI", 14), text_color=secondary)
+        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0 | Access: 0", font=("Segoe UI", 14), text_color=secondary)
         self.corruption_label.pack(side="right", padx=12)
 
         # Chat area
@@ -87,7 +87,8 @@ class HumblrUI:
             while True:
                 try:
                     level = self.corruption.get_level()
-                    self.corruption_label.configure(text=f"Corruption: {level:.1f}")
+                    access = self.corruption.get_access_level()
+                    self.corruption_label.configure(text=f"Corruption: {level:.1f} | Access: {access}")
 
                     activity = self.monitor.get_current_activity_summary()
                     self.status_bar.configure(text=activity[:85] + "..." if len(activity) > 85 else activity)

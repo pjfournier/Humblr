@@ -6,6 +6,9 @@ Windows only.
 import os
 import random
 import ctypes
+import webbrowser
+import tkinter as tk
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -17,6 +20,7 @@ try:
     from plyer import notification
 except ImportError:
     notification = None
+
 
 
 class SystemActions:
@@ -111,3 +115,61 @@ class SystemActions:
             if shortcut_path.exists():
                 shortcut_path.unlink()
                 print("[System] Auto-start disabled.")
+
+    # --- TAKEOVER / ESCALATION ACTIONS ---
+
+    def show_humblr_message_popup(self, message: str, duration_ms: int = 8000):
+        """Show a simple always-on-top popup that feels like Humblr is speaking directly."""
+        try:
+            popup = tk.Tk()
+            popup.title("Humblr")
+            popup.attributes("-topmost", True)
+            popup.geometry("420x160+300+200")
+            popup.configure(bg="#1a1a1f")
+
+            label = tk.Label(
+                popup,
+                text=message,
+                wraplength=380,
+                bg="#1a1a1f",
+                fg="#c026ff",
+                font=("Segoe UI", 12, "bold"),
+                justify="left"
+            )
+            label.pack(padx=15, pady=20, fill="both", expand=True)
+
+            close_btn = tk.Button(
+                popup, text="Dismiss", command=popup.destroy,
+                bg="#2a2a2f", fg="#ff2e88", relief="flat"
+            )
+            close_btn.pack(pady=(0, 10))
+
+            popup.after(duration_ms, popup.destroy)
+            popup.mainloop()
+        except Exception as e:
+            print(f"[System] Popup failed: {e}")
+            self.notify("Humblr", message)
+
+    def force_open_url(self, url: str, reason: str = ""):
+        """Open a browser tab. Used for 'guidance' or punishment/reward."""
+        try:
+            webbrowser.open(url, new=2)
+            self.notify("Humblr", f"Opening something for you... {reason}")
+        except Exception as e:
+            print(f"[System] Failed to open URL: {e}")
+
+    def leave_desktop_note(self, text: str):
+        """Drops a text file on the Desktop so Humblr 'leaves a message'."""
+        try:
+            desktop = Path.home() / "Desktop"
+            note_path = desktop / f"Humblr_{int(time.time())}.txt"
+            with open(note_path, "w", encoding="utf-8") as f:
+                f.write(f"Humblr says:\n\n{text}\n\n— Your computer belongs to me now.")
+            self.notify("Humblr", "I left you a note on your desktop.")
+        except Exception as e:
+            print(f"[System] Desktop note failed: {e}")
+
+    def increase_control(self, level: int):
+        """Placeholder for future escalating privileges (e.g. more permissions)."""
+        print(f"[System] Access level now feels like {level}. More of your machine is mine.")
+

@@ -15,6 +15,29 @@ class CorruptionEngine:
     def get_level(self) -> float:
         return self.storage.get_corruption()
 
+    def get_access_level(self) -> int:
+        """0-5 scale of how much control Humblr currently has."""
+        level = self.get_level()
+        if level >= 85: return 5
+        if level >= 65: return 4
+        if level >= 45: return 3
+        if level >= 25: return 2
+        if level >= 10: return 1
+        return 0
+
+    def get_access_description(self) -> str:
+        lvl = self.get_access_level()
+        descriptions = {
+            0: "barely watching",
+            1: "starting to notice",
+            2: "paying close attention",
+            3: "gaining real influence",
+            4: "taking over more of the machine",
+            5: "in deep control"
+        }
+        return descriptions.get(lvl, "watching")
+
+
     def add_activity(self, activity: Dict[str, Any]):
         if not self.enabled:
             return

@@ -9,4 +9,9 @@ keyboard>=0.13.5
 python-dotenv>=1.0.0
 openai>=1.0.0   # for xAI / OpenAI compatible APIs
 uiautomation>=2.0.0; sys_platform == "win32"   # for reading browser URLs and UI elements
+pyperclip>=1.8.2
+pyautogui>=0.9.54; sys_platform == "win32"   # screenshots + limited input simulation for tasks/proof
+pystray>=0.19.5; sys_platform == "win32"     # system tray icon for persistent presence
+pillow>=10.0.0  # already have, for tray icon images if needed
+
 

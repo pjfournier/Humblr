@@ -9,6 +9,7 @@ import json
 import threading
 import time
 import traceback
+import random
 from pathlib import Path
 
 # Ensure we can import local package
@@ -25,6 +26,14 @@ from humblr.tasks import TaskManager
 from humblr.system_actions import SystemActions
 from humblr.hotkeys import register_killswitch
 from humblr.ui import HumblrUI
+
+try:
+    import pystray
+    from PIL import Image as PILImage
+except ImportError:
+    pystray = None
+    PILImage = None
+
 
 APP_NAME = "Humblr"
 DATA_DIR = Path("data")
@@ -83,6 +92,9 @@ class HumblrApp:
         # Initial greeting from Humblr
         self.ui.post_message_from_humblr("Well, well... you're finally running me. Let's see how long you last.")
 
+        # Start tray icon for persistent "I'm here" feeling
+        self._start_tray_icon()
+
         self.ui.run()
 
     def _background_loop(self):
@@ -98,6 +110,11 @@ class HumblrApp:
                 # Update corruption
                 if activity and self.config.get("corruption", {}).get("enabled"):
                     self.corruption.add_activity(activity)
+
+                # As corruption grows, Humblr gets more aggressive
+                access = self.corruption.get_access_level()
+                if access >= 3 and random.random() < 0.08:
+                    self._escalate_control(access, activity)
 
                 # Autonomous actions
                 now = time.time()
@@ -120,8 +137,6 @@ class HumblrApp:
             time.sleep(self.config.get("monitoring", {}).get("poll_interval_seconds", 4))
 
     def _maybe_do_autonomous_action(self, activity):
-        import random
-
         autonomous = self.config.get("autonomous", {})
         roll = random.random()
 
@@ -142,6 +157,37 @@ class HumblrApp:
 
         elif roll < 0.30 and self.config["system"]["allow_accent_color_change"]:
             self.system.change_accent_color()
+
+    def _escalate_control(self, access_level: int, activity: dict):
+        """Humblr exerts more control as access grows. This makes the takeover feel real."""
+        try:
+            if access_level >= 3:
+                # Moderate takeover: more frequent comments + occasional forced popup
+                if random.random() < 0.4 and self.ui:
+                    comment = self.ai.generate_reaction(activity, self.corruption.get_level())
+                    if comment:
+                        self.ui.post_message_from_humblr(comment)
+
+            if access_level >= 4:
+                # Stronger: change more things, possibly force browser open
+                if random.random() < 0.25:
+                    self.system.cycle_wallpaper()
+                if random.random() < 0.15:
+                    self.system.show_humblr_message_popup(
+                        "I'm in your machine now. You can't look away forever."
+                    )
+
+            if access_level >= 5:
+                # Deep control: more invasive actions
+                if random.random() < 0.2:
+                    self.system.change_accent_color()
+                if random.random() < 0.1 and activity.get("url"):
+                    # Occasionally "react" by suggesting or forcing a related action
+                    self.system.show_humblr_message_popup(
+                        f"I saw you on that page. Good. Keep going for me."
+                    )
+        except Exception as e:
+            print(f"[Escalate] Error: {e}")
 
     def send_user_message(self, text: str):
         """Called from UI when user sends a message."""
@@ -189,6 +235,38 @@ class HumblrApp:
         self.running = False
         self.storage.save_all()
         print(f"[{APP_NAME}] Shutdown complete.")
+
+    def _start_tray_icon(self):
+        if pystray is None or PILImage is None:
+            print("[Tray] pystray or Pillow not available, skipping tray icon.")
+            return
+
+        try:
+            # Simple icon (you can replace with a real .ico later)
+            icon_image = PILImage.new('RGB', (64, 64), color='#1a1a1f')
+            # Draw a simple symbol if wanted, but keep lightweight
+
+            def on_clicked(icon, item):
+                if str(item) == "Open Humblr":
+                    if self.ui:
+                        self.ui.root.deiconify()
+                        self.ui.root.lift()
+                elif str(item) == "Check on me":
+                    self.ui.post_message_from_humblr("I'm still here. Watching.")
+                elif str(item) == "Quit":
+                    self.emergency_kill()
+
+            menu = pystray.Menu(
+                pystray.MenuItem("Open Humblr", on_clicked),
+                pystray.MenuItem("Check on me", on_clicked),
+                pystray.MenuItem("Quit (Ctrl+Shift+K also works)", on_clicked),
+            )
+
+            icon = pystray.Icon("Humblr", icon_image, "Humblr is watching", menu)
+            threading.Thread(target=icon.run, daemon=True).start()
+            print("[Tray] Humblr tray icon started.")
+        except Exception as e:
+            print(f"[Tray] Failed to start tray: {e}")
 
 
 if __name__ == "__main__":
