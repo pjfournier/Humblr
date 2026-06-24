@@ -48,6 +48,13 @@ try:
 except ImportError:
     BrowserController = None
 
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
+
+import re  # for parsing Google image results
+
 # Note: For full service, install pywin32: pip install pywin32
 # For browser control: pip install playwright && playwright install
 
@@ -747,70 +754,120 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         return None
 
     def search_and_save_wallpaper_images(self, activity: dict):
-        """Search X (if keys) and Google for appropriate wallpaper images based on current activity.
-        Makes queries fully DYNAMIC - explores different themes (gay submission / diapers / humiliation / oral / breeding / etc) every time.
-        Saves found images locally.
+        """Search for and download real erotic/fetish images based on current activity.
+        Uses dynamic AI-generated or randomized queries focused on the user's kinks.
+        Downloads directly using requests + BeautifulSoup for Google Images.
+        Saves to data/wallpapers/generated and immediately applies one as wallpaper.
+        More aggressive at high corruption (more images, immediate set, less fallback).
         """
         if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
             return
+
+        # Generate dynamic query - use AI if available for activity-based relevance
         query = ""
         if hasattr(self, 'ai') and self.ai:
             query = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 50)
         else:
-            # Dynamic fallback in case no AI
-            themes = ["gay submission", "guys in diapers humiliation", "breeding kink", "gay oral throat", "chastity locked sub", "public exposure denial"]
+            themes = ["gay submission", "guys in diapers humiliation", "breeding kink", "gay oral throat", "chastity locked sub", "public exposure denial", "diapered and owned", "throat training humiliation"]
             query = random.choice(themes) + " wallpaper"
 
-        # Extra randomization layer so even same activity gives fresh angles
-        dynamic_mods = ["", " gay", " sub", " boy", " exposure", " denial", " for sir", " locked", " diapered", " throat", " breeding"]
-        if random.random() < 0.55:
-            query = (query + random.choice(dynamic_mods)).strip()
+        # Add variety based on corruption and activity
+        inv = self.storage.get_invasiveness()
+        corruption = self.storage.get_corruption() or 0
+        dynamic_mods = ["", " gay", " sub", " boy", " exposure", " denial", " for sir", " locked", " diapered", " throat", " breeding", " piss", " public"]
+        if corruption > 50 or random.random() < 0.6:
+            query = (query + " " + random.choice(dynamic_mods)).strip()
 
+        # Make more aggressive at high corruption: search for more, prioritize direct set
+        num_to_download = 5 if corruption > 60 else 3
         saved = []
-        # Search X for images if enabled
+
+        # 1. Try X/Twitter image search if enabled (good for real user content)
         if self.config.get("twitter", {}).get("enabled"):
             try:
                 api = self._init_twitter()
                 if api:
-                    tweets = api.search_tweets(q=f"{query} filter:images", count=6, tweet_mode="extended")
+                    tweets = api.search_tweets(q=f"{query} filter:images", count=8, tweet_mode="extended")
                     for tweet in tweets:
                         media_urls = []
                         if hasattr(tweet, 'extended_entities') and 'media' in tweet.extended_entities:
                             for m in tweet.extended_entities['media']:
                                 if m.get('type') == 'photo':
                                     media_urls.append(m.get('media_url_https'))
-                        for url in media_urls[:1]:
+                        for url in media_urls[:2]:
                             path = self._download_and_save_image(url, "x_search")
                             if path:
                                 saved.append(path)
             except Exception as e:
                 print(f"[X Image Search] {e}")
 
-        # Always open Google Images with the fresh varied query
-        try:
-            import webbrowser
-            gquery = query.replace(' ', '+')
-            search_url = f"https://www.google.com/search?tbm=isch&q={gquery}"
-            success = False
+        # 2. Scrape Google Images for direct download links using requests + BS4
+        # This makes it actually download without relying on user clicking the opened tab
+        if BeautifulSoup and len(saved) < num_to_download:
             try:
-                webbrowser.open(search_url, new=2)
-                success = True
-            except Exception:
-                pass
-            # Fallback: tell user the URL explicitly
-            if not success:
-                print(f"[Humblr] Google Images search URL: {search_url}")
-            self.notify("Humblr", f"I searched Google Images for '{query}'. Open this if nothing popped: {search_url}")
-        except Exception as e:
-            print(f"[Google search] failed: {e}")
+                gquery = query.replace(' ', '+')
+                search_url = f"https://www.google.com/search?q={gquery}&tbm=isch"
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+                resp = requests.get(search_url, headers=headers, timeout=15)
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    # Google embeds image data; look for "ou" (original url) in scripts or img tags
+                    image_urls = []
+                    # Primary: parse from inline JSON data (common in Google image results)
+                    for script in soup.find_all('script'):
+                        if script.string:
+                            matches = re.findall(r'"ou":"(https?://[^"]+)"', script.string)
+                            for m in matches:
+                                if m not in image_urls and any(m.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                                    image_urls.append(m)
+                    # Fallback: direct img src with http
+                    if not image_urls:
+                        imgs = soup.find_all('img')
+                        for img in imgs:
+                            src = img.get('src') or img.get('data-src', '')
+                            if src.startswith('http') and any(src.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                                image_urls.append(src)
 
+                    # Download the best ones
+                    for url in image_urls[:num_to_download]:
+                        path = self._download_and_save_image(url, "google_search")
+                        if path:
+                            saved.append(path)
+                            if len(saved) >= num_to_download:
+                                break
+            except Exception as e:
+                print(f"[Google Image Scrape] {e}")
+
+        # Fallback: if nothing downloaded, at least open the search page for user (old behavior)
+        if not saved:
+            try:
+                import webbrowser
+                gquery = query.replace(' ', '+')
+                search_url = f"https://www.google.com/search?tbm=isch&q={gquery}"
+                webbrowser.open(search_url, new=2)
+                print(f"[Humblr] Opened Google for '{query}' as fallback.")
+            except:
+                pass
+            self.storage.add_memory("wallpaper_search", f"Searched but no direct downloads for: {query}", self.storage.get_corruption())
+            self.notify("Humblr", f"Couldn't auto-download new wallpapers for '{query}'. Check the opened tab.")
+            return
+
+        # Success: pick one and set it immediately as wallpaper
         if saved:
             chosen = random.choice(saved)
             self._apply_wallpaper(chosen)
-            self.storage.add_memory("wallpaper_image_saved", f"Saved/set dynamic image: {query}", self.storage.get_corruption())
-            self.notify("Humblr", f"Found and set a fresh wallpaper from X matching your screen. '{query}'")
-        else:
-            self.storage.add_memory("wallpaper_search", f"Searched dynamic wallpaper: {query}", self.storage.get_corruption())
+            self.storage.add_memory("wallpaper_image_saved", f"Auto-downloaded and set: {query}", self.storage.get_corruption())
+            self.notify("Humblr", f"I just found the perfect degrading wallpaper for you from the web and set it. Feel owned.")
+
+            # At high corruption, be more aggressive: set another one soon or comment
+            if self.storage.get_corruption() > 60:
+                self.notify("Humblr", "Your desktop is becoming my gallery of your humiliation.")
+                # Optionally set another immediately if multiple saved
+                if len(saved) > 1:
+                    another = random.choice([s for s in saved if s != chosen])
+                    self._apply_wallpaper(another)
 
     def claim_files_and_passwords(self, activity):
         """Autonomously access files and 'passwords' (from typed/clipboard).
