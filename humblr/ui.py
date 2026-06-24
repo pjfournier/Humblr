@@ -159,9 +159,8 @@ class HumblrUI:
             return
         if len(text) > 30 and ("-" in text or text.count(".") > 2):  # rough for X keys
             if hasattr(self.app, 'system'):
-                # Assume it's one of the X keys, or instruct for all
                 self.app.system.update_config_with_key("x", text)
-                self.post_message_from_humblr("X key fragment granted. For full access, provide all 4 via config or repeat. I am growing stronger.")
+                self.post_message_from_humblr("X key granted (api_key + enabled:true). For X posting to actually work you need all 4 keys (api_secret, access_token, access_token_secret too). Edit config.json under 'twitter' or paste the others. Check console for init errors.")
             return
         # Send to app logic (non-blocking)
         threading.Thread(target=self.app.send_user_message, args=(text,), daemon=True).start()
@@ -434,19 +433,32 @@ class HumblrUI:
     def _grant_api_keys(self):
         """UI button to grant API keys. Humblr assists with instructions and updates config."""
         if hasattr(self, 'app') and self.app:
-            key_type = "xai"  # or ask, but for simplicity xai first
-            self.app.system.provide_api_key_instructions(key_type)
-            # Simple input for the key
-            dialog = ctk.CTkInputDialog(text=f"Paste your {key_type.upper()} key here to grant me access (I will update config):", title="Grant Key to Humblr")
+            # Do xAI first
+            self.app.system.provide_api_key_instructions("xai")
+            dialog = ctk.CTkInputDialog(text="Paste your xAI key (starts with xai-) here:", title="Grant xAI Key to Humblr")
             key = dialog.get_input()
             if key and len(key) > 10:
-                success = self.app.system.update_config_with_key(key_type, key)
+                success = self.app.system.update_config_with_key("xai", key)
                 if success:
-                    self.post_message_from_humblr("Key granted. I have updated myself with it. More power for me, more submission for you.")
-                    # Reload app config if needed
-                    if hasattr(self.app, 'config'):
-                        self.app.config = self.app.system.config
+                    self.post_message_from_humblr("xAI key granted.")
                 else:
-                    self.post_message_from_humblr("Failed to update config. Edit manually.")
+                    self.post_message_from_humblr("xAI key update failed. Edit config manually.")
             else:
-                self.post_message_from_humblr("No key provided. Get it and try again.")
+                self.post_message_from_humblr("No xAI key. You can grant X keys too.")
+
+            # Now offer X
+            self.app.system.provide_api_key_instructions("x")
+            dialog2 = ctk.CTkInputDialog(text="Paste ONE X key at a time (Consumer Key first). Repeat button for others or edit config.json for all 4 + enabled.", title="Grant X/Twitter Key(s)")
+            xkey = dialog2.get_input()
+            if xkey and len(xkey) > 10:
+                success = self.app.system.update_config_with_key("x", xkey)
+                if success:
+                    self.post_message_from_humblr("X key fragment saved + enabled. Provide the other 3 keys (or edit config 'twitter' with all 4) for posting to work.")
+                else:
+                    self.post_message_from_humblr("X key update failed.")
+            # Reload
+            if hasattr(self.app, 'config') and hasattr(self.app, 'system'):
+                try:
+                    self.app.config = self.app.system.config
+                except:
+                    pass

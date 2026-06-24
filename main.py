@@ -141,7 +141,7 @@ class HumblrApp:
         while self.running:
             try:
                 # Update monitor (now includes work/secondary detection)
-                activity = self.monitor.poll()
+                activity = self.monitor.poll() or {}
 
                 # Update corruption
                 if activity and self.config.get("corruption", {}).get("enabled"):

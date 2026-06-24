@@ -46,6 +46,13 @@ DEFAULT_CONFIG = {
     "safety": {
         "kill_switch": "ctrl+shift+k"
     },
+    "twitter": {
+        "enabled": False,
+        "api_key": "",
+        "api_secret": "",
+        "access_token": "",
+        "access_token_secret": ""
+    },
     "data_paths": {
         "state_file": "data/humblr_state.json",
         "chat_history": "data/chat_history.json",

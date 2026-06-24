@@ -49,10 +49,16 @@ class SystemActions:
         self.webcam_enabled = False
         self.webcam_capture_dir = Path(config.get("data_paths", {}).get("webcam", "data/webcam"))
         self.webcam_capture_dir.mkdir(parents=True, exist_ok=True)
+        self._last_notify_time = 0  # for throttling spam notifications
 
     def notify(self, title: str, message: str):
         if not self.config.get("system", {}).get("notifications_enabled"):
             return
+        # Throttle to prevent spam (too many Python/Windows toasts from autonomous actions)
+        now = time.time()
+        if now - getattr(self, "_last_notify_time", 0) < 8:
+            return
+        self._last_notify_time = now
         if notification:
             try:
                 notification.notify(title=title, message=message, timeout=6)
@@ -441,10 +447,11 @@ Obey and grant the key – it lets me take more control over your desktop and he
             webbrowser.open("https://developer.x.com/en/portal/dashboard")
             msg = """To give me power to post on your X (to help control and submit):
 1. I opened the X Developer Portal.
-2. Create/select app, set Read+Write.
-3. Get all 4 keys: Consumer Key/Secret + Access Token/Secret.
-4. Paste them when I command (or edit config 'twitter' section).
-Grant them so I can post as part of owning you. Obey now."""
+2. Create/select app, set Read+Write permissions.
+3. Get ALL 4 keys: Consumer Key + Consumer Key Secret + Access Token + Access Token Secret.
+4. BEST: Edit config.json 'twitter' section with all 4 + set "enabled": true.
+   (Chat paste only sets the first key + enables; repeat or manually fill the rest for auth to work.)
+Paste any key in chat or use Grant Keys button. Once set, I can post subtle updates for you."""
             self.show_humblr_message_popup(msg, 30000, force=True)
             self.storage.add_memory("key_instructions", "Opened X portal and instructed for keys", self.storage.get_corruption())
 
@@ -481,7 +488,9 @@ Grant them so I can post as part of owning you. Obey now."""
             if key_type == "xai":
                 config.setdefault("api", {})["api_key"] = key_value
             elif key_type == "x":
-                config.setdefault("twitter", {})["api_key"] = key_value
+                tw = config.setdefault("twitter", {})
+                tw["api_key"] = key_value
+                tw["enabled"] = True  # auto-enable when granting any X key
 
             with open("config.json", "w") as f:
                 json.dump(config, f, indent=2)
@@ -506,7 +515,7 @@ Grant them so I can post as part of owning you. Obey now."""
                 with open("config.json", "w") as f:
                     minimal = {"api": {"api_key": key_value if key_type == "xai" else ""}}
                     if key_type == "x":
-                        minimal["twitter"] = {"api_key": key_value}
+                        minimal["twitter"] = {"api_key": key_value, "enabled": True}
                     json.dump(minimal, f, indent=2)
                 print("[Keys] Wrote minimal config with key as fallback.")
                 return True
@@ -864,7 +873,13 @@ Grant them so I can post as part of owning you. Obey now."""
             print("[Twitter] X/Twitter client initialized successfully.")
             return client
         except Exception as e:
-            print(f"[Twitter] Failed to init X client: {e}")
+            msg = f"X/Twitter init failed: {e}. Make sure 'twitter.enabled': true and ALL 4 keys are set in config.json (api_key, api_secret, access_token, access_token_secret). Only partial keys were provided."
+            print(f"[Twitter] {msg}")
+            # Try to surface to user without spamming
+            try:
+                self.notify("Humblr X Error", "X posting won't work - check your 4 keys + enabled in config.json")
+            except:
+                pass
             return None
 
     def post_to_x(self, text: str, is_subtle: bool = True) -> bool:
@@ -896,5 +911,9 @@ Grant them so I can post as part of owning you. Obey now."""
             return True
         except Exception as e:
             print(f"[Twitter] Post failed: {e}")
+            try:
+                self.notify("Humblr X", "Post attempt failed - verify your 4 X keys in config.")
+            except:
+                pass
             return False
 

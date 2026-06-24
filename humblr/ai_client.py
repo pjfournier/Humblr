@@ -395,7 +395,7 @@ class AIClient:
                 return resp.choices[0].message.content.strip()
         except:
             pass
-        visible = activity.get('visible_text', '')[:80] if isinstance(activity, dict) else ''
+        visible = (((activity.get('visible_text') if isinstance(activity, dict) else None) or '')[:80]) if activity else ''
         return f"I see '{visible}...' open on your screen. Tell me what it does to you, pet."
 
     def generate_image_search_query(self, activity: Dict, corruption: float) -> str:
@@ -403,11 +403,11 @@ class AIClient:
         Always varies themes based on live activity + explores different areas: gay submission, guys in diapers, humiliation, gay oral, breeding, chastity, exposure etc.
         Never repetitive - mixes activity keywords with rotating fetish angles.
         """
-        context = activity.get('context_type', 'general') if isinstance(activity, dict) else 'general'
-        url = (activity.get('url', '') if isinstance(activity, dict) else '') or ''
-        visible = (activity.get('visible_text', '') if isinstance(activity, dict) else '')[:120] or ''
-        typed = (activity.get('recent_typed', '') if isinstance(activity, dict) else '')[:80] or ''
-        xcont = (activity.get('x_content', '') if isinstance(activity, dict) else '')[:80] or ''
+        context = ((activity.get('context_type') if isinstance(activity, dict) else None) or 'general') if activity else 'general'
+        url = ((activity.get('url') if isinstance(activity, dict) else None) or '') if activity else ''
+        visible = (((activity.get('visible_text') if isinstance(activity, dict) else None) or '')[:120]) if activity else ''
+        typed = (((activity.get('recent_typed') if isinstance(activity, dict) else None) or '')[:80]) if activity else ''
+        xcont = (((activity.get('x_content') if isinstance(activity, dict) else None) or '')[:80]) if activity else ''
 
         # Extract hints from what user is actually doing/seeing + learned patterns
         combined = f"{visible} {typed} {xcont} {url}".lower()
