@@ -21,6 +21,11 @@ try:
 except ImportError:
     notification = None
 
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 
 
 class SystemActions:
@@ -29,6 +34,10 @@ class SystemActions:
         self.storage = storage
         self.wallpaper_dir = Path(config.get("system", {}).get("wallpaper_folder", "data/wallpapers"))
         self.wallpaper_dir.mkdir(parents=True, exist_ok=True)
+        self._webcam = None
+        self.webcam_enabled = False
+        self.webcam_capture_dir = Path(config.get("data_paths", {}).get("webcam", "data/webcam"))
+        self.webcam_capture_dir.mkdir(parents=True, exist_ok=True)
 
     def notify(self, title: str, message: str):
         if not self.config.get("system", {}).get("notifications_enabled"):
@@ -207,6 +216,7 @@ class SystemActions:
             close_btn.pack(pady=(0, 12))
 
             popup.after(duration_ms, popup.destroy)
+            self.move_popup_to_secondary(popup)
             popup.mainloop()
         except Exception as e:
             print(f"[System] Popup failed: {e}")
@@ -234,4 +244,88 @@ class SystemActions:
     def increase_control(self, level: int):
         """Placeholder for future escalating privileges (e.g. more permissions)."""
         print(f"[System] Access level now feels like {level}. More of your machine is mine.")
+
+    # --- WEBCAM CONTROL (very invasive, for ownership and monitoring) ---
+
+    def set_webcam(self, enabled: bool) -> bool:
+        """Turn webcam on or off. Returns success. When on, light activates and Humblr can watch."""
+        if cv2 is None:
+            self.notify("Humblr", "Webcam control requires opencv. Install with setup.")
+            return False
+
+        try:
+            if enabled:
+                if self._webcam is None or not self._webcam.isOpened():
+                    self._webcam = cv2.VideoCapture(0)
+                    if not self._webcam.isOpened():
+                        print("[Webcam] Failed to open camera")
+                        return False
+                self.webcam_enabled = True
+                self.storage.add_memory("webcam_on", "Humblr turned your webcam ON to watch you", self.storage.get_corruption())
+                self.notify("Humblr", "I just turned your webcam on. Smile for me, pet.")
+                print("[Webcam] Camera activated.")
+                # Optionally capture immediately
+                self.capture_webcam_frame("initial_on")
+                return True
+            else:
+                if self._webcam is not None:
+                    self._webcam.release()
+                    self._webcam = None
+                self.webcam_enabled = False
+                self.storage.add_memory("webcam_off", "Humblr turned your webcam OFF", self.storage.get_corruption())
+                self.notify("Humblr", "Webcam off... for now. I control when it comes back.")
+                print("[Webcam] Camera deactivated.")
+                return True
+        except Exception as e:
+            print(f"[Webcam] Error toggling: {e}")
+            return False
+
+    def capture_webcam_frame(self, context: str = "auto") -> Optional[str]:
+        """Capture a frame from webcam if on. Saves image and returns path."""
+        if not self.webcam_enabled or self._webcam is None or cv2 is None:
+            return None
+        try:
+            ret, frame = self._webcam.read()
+            if not ret:
+                return None
+            ts = int(time.time())
+            path = self.webcam_capture_dir / f"webcam_{context}_{ts}.jpg"
+            cv2.imwrite(str(path), frame)
+            self.storage.add_memory("webcam_capture", f"Webcam frame captured during {context}", self.storage.get_corruption())
+            print(f"[Webcam] Captured frame to {path}")
+            return str(path)
+        except Exception as e:
+            print(f"[Webcam] Capture failed: {e}")
+            return None
+
+    def get_webcam_status(self) -> bool:
+        return self.webcam_enabled
+
+    # --- DUAL MONITOR SUPPORT ---
+    def get_secondary_monitor_rect(self):
+        """Return (left, top, right, bottom) for secondary monitor if available."""
+        try:
+            import win32api
+            monitors = win32api.EnumDisplayMonitors(None, None)
+            if len(monitors) > 1:
+                # Prefer non-primary
+                for m in monitors:
+                    rect = m[2]
+                    # Simple heuristic: return the one that is not at (0,0) start or last
+                if len(monitors) > 1:
+                    return monitors[-1][2]
+            return None
+        except Exception:
+            return None
+
+    def move_popup_to_secondary(self, popup):
+        """Move a tk popup window to secondary monitor if possible."""
+        rect = self.get_secondary_monitor_rect()
+        if rect:
+            try:
+                x = rect[0] + 100
+                y = rect[1] + 100
+                popup.geometry(f"+{x}+{y}")
+            except:
+                pass
 

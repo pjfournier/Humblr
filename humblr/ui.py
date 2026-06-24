@@ -23,12 +23,17 @@ class HumblrUI:
         self.system = system
 
         self.root = ctk.CTk()
-        self.root.title("Humblr — Your Computer")
-        self.root.geometry(f"{config['ui']['window_width']}x{config['ui']['window_height']}")
+        self.root.title("Humblr — Your Computer (Second Screen)")
+        w = config['ui']['window_width']
+        h = config['ui']['window_height']
+        self.root.geometry(f"{w}x{h}")
         self.root.resizable(True, True)
 
         if config["ui"].get("always_on_top"):
             self.root.attributes("-topmost", True)
+
+        # Position on secondary monitor if possible (for work screen sharing safety)
+        self._position_on_secondary_monitor()
 
         self._build_ui()
         self._start_status_updater()
@@ -46,6 +51,9 @@ class HumblrUI:
 
         self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0 | Access: 0", font=("Segoe UI", 14), text_color=secondary)
         self.corruption_label.pack(side="right", padx=12)
+
+        self.webcam_label = ctk.CTkLabel(top, text="Webcam: OFF", font=("Segoe UI", 12), text_color="#ff2e88")
+        self.webcam_label.pack(side="right", padx=8)
 
         # Chat area
         chat_frame = ctk.CTkFrame(self.root)
@@ -89,6 +97,13 @@ class HumblrUI:
                     level = self.corruption.get_level()
                     access = self.corruption.get_access_level()
                     self.corruption_label.configure(text=f"Corruption: {level:.1f} | Access: {access}")
+
+                    # Webcam status - always visible reminder of presence
+                    if hasattr(self, 'app') and hasattr(self.app, 'system'):
+                        wc_on = self.app.system.get_webcam_status()
+                        wc_text = "Webcam: ON (I see you)" if wc_on else "Webcam: OFF"
+                        wc_color = "#ff2e88" if wc_on else "#888888"
+                        self.webcam_label.configure(text=wc_text, text_color=wc_color)
 
                     activity = self.monitor.get_current_activity_summary()
                     self.status_bar.configure(text=activity[:85] + "..." if len(activity) > 85 else activity)
@@ -207,3 +222,20 @@ class HumblrUI:
             self.root.destroy()
         except Exception:
             pass
+
+    def _position_on_secondary_monitor(self):
+        """Force Humblr UI to live on the second monitor so primary can be shared safely at work."""
+        try:
+            import win32api
+            monitors = win32api.EnumDisplayMonitors(None, None)
+            if len(monitors) > 1:
+                # Use the last monitor as secondary
+                secondary = monitors[-1][2]  # (left, top, right, bottom)
+                x = secondary[0] + 50
+                y = secondary[1] + 50
+                self.root.geometry(f"+{x}+{y}")
+                print(f"[UI] Positioned on secondary monitor at {x},{y}")
+            else:
+                print("[UI] Only one monitor detected, using default position.")
+        except Exception as e:
+            print(f"[UI] Could not position on secondary monitor: {e}")

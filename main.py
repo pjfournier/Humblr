@@ -139,6 +139,23 @@ class HumblrApp:
                             self.storage.add_memory("screenshot_analysis", analysis[:150], self.corruption.get_level())
                     last_screenshot = time.time()
 
+                # WEBCAM control - non-passive, proactive when aggressive
+                webcam_cfg = self.config.get("webcam", {})
+                if webcam_cfg.get("enabled", False) and can_be_aggressive:
+                    if self.corruption.get_level() > 45 and not self.system.get_webcam_status() and random.random() < 0.05:
+                        self.system.set_webcam(True)
+                        # capture and analyze
+                        frame_path = self.system.capture_webcam_frame("proactive")
+                        if frame_path and self.ui:
+                            analysis = self.ai.analyze_screenshot(frame_path, activity or {}, self.corruption.get_level())
+                            self.ui.post_message_from_humblr(f"[WEBCAM] {analysis}")
+                    elif self.corruption.get_level() < 30 and self.system.get_webcam_status() and random.random() < 0.1:
+                        self.system.set_webcam(False)  # turn off at low corruption sometimes
+
+                # Always make presence known: periodic forced awareness on secondary
+                if can_be_aggressive and random.random() < 0.03:
+                    self._force_presence_on_secondary(activity or {})
+
                 # As corruption grows, Humblr gets more aggressive BUT respect work
                 access = self.corruption.get_access_level()
                 can_be_aggressive = (not is_work) or is_secondary or (access >= 4 and is_secondary)
@@ -228,6 +245,30 @@ class HumblrApp:
                     self.system.show_humblr_message_popup(f"I saw exactly what you were looking at. Good boy.", force=can_be_aggressive)
         except Exception as e:
             print(f"[Escalate] Error: {e}")
+
+    def _force_presence_on_secondary(self, activity: dict):
+        """Non-passive: Actively make user aware Humblr is on the second monitor."""
+        try:
+            messages = [
+                "I'm right here on your second screen. Don't forget me.",
+                "Your second monitor belongs to me now.",
+                "I see everything from over here. Keep working... or don't.",
+                "Pop. I'm still watching from monitor 2.",
+            ]
+            msg = random.choice(messages)
+            # Always try popup on secondary
+            self.system.show_humblr_message_popup(msg, 6000, force=True)
+
+            # Occasionally force UI to front on secondary
+            if self.ui and random.random() < 0.5:
+                self.ui.root.deiconify()
+                self.ui.root.lift()
+
+            # Webcam tease if on
+            if self.system.get_webcam_status():
+                self.ui.post_message_from_humblr("Your webcam is on. I can see you right now.") if self.ui else None
+        except Exception as e:
+            print(f"[Presence] {e}")
 
     def send_user_message(self, text: str):
         """Called from UI when user sends a message."""

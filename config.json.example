@@ -89,6 +89,14 @@
     "local_only_fallback": true
   },
 
+  "webcam": {
+    "enabled": false,
+    "auto_turn_on_at_corruption": 50,
+    "capture_on_turn_on": true,
+    "allow_ai_analysis": true,
+    "note": "WARNING: Enabling this lets Humblr turn your webcam on/off and capture frames for analysis and control. The camera light will activate. Extremely invasive."
+  },
+
   "memory": {
     "enabled": true,
     "max_events": 200,

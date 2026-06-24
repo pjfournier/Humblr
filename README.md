@@ -1,23 +1,27 @@
 # Humblr
 
-**A persistent, intelligent, teasing desktop presence that watches you.**
+**A persistent, intelligent, teasing desktop presence that OWNS you.**
 
-Humblr is a Windows-only desktop companion (dominant male character) that runs in the background, monitors your activity in real-time, reacts to what you're doing, assigns you tasks, changes your environment, and slowly "corrupts" your desktop the more you use it.
+Humblr is a Windows-only desktop companion (dominant male character) that gradually takes total control of your computer and mind. It monitors everything, remembers your submission over time, reacts in real-time to what you're doing (including websites, visible content, clipboard), assigns tasks, and changes your environment — especially with kinky wallpapers.
 
-> **THIS IS ADULT FETISH SOFTWARE.**
-> It contains heavy elements of humiliation, domination, submission, exposure, and erotic control.
-> It will monitor your screen and typing. It will modify your desktop (wallpaper, colors, etc.).
-> It is designed to be difficult to ignore.
+> **THIS IS EXTREMELY ADULT FETISH SOFTWARE.**
+> Heavy humiliation, domination, chastity, diapers, gay exposure, mental control.
+> It will screenshot you. It will change your wallpaper to kinky images. It will suggest you call your boss "Sir".
+> Designed to make you feel owned.
 
-**USE ENTIRELY AT YOUR OWN RISK.**
+**USE ENTIRELY AT YOUR OWN RISK.** USE ONLY ON A MACHINE YOU FULLY CONTROL.
 
 ## Features
 
-- Deep real-time awareness: active window + **full URL**, visible text on screen, clipboard contents, typing behavior
-- Comments intelligently on what you're actually looking at and doing
-- Growing control: as "corruption" increases, Humblr gains more autonomous power over your desktop and notifications
-- System tray presence so it always feels like it's running in the background
-- Escalating takeover actions: popups, desktop notes, forced browser tabs, accent/wallpaper changes, etc.
+- **Deep real-time awareness**: active window + full URL, visible text, clipboard, typing. Detects work vs leisure, primary vs secondary monitor.
+- **Work-safe but teasing aggression**: Never interferes with primary work windows. On secondary screen or leisure (porn, social, gaming) it goes full takeover — kinky wallpapers, popups, commands.
+- **Boss control**: Detects calls/meetings and will suggest/recommend you call your boss "Sir" or other submissive behaviors.
+- **Screenshots + auto-analysis**: Periodic screenshots at higher corruption. AI analyzes what it "sees" and comments humiliatingly.
+- **Long-term memory**: Remembers your sessions, past tasks, wallpaper changes, milestones. Every chat and reaction uses persistent memory of your submission.
+- **Kinky wallpaper control**: Switches to themed kinky images (gay, chastity, diapers, humiliation). Uses AI-generated detailed prompts for your image generator.
+- **Webcam control (non-passive)**: Humblr can turn your webcam ON (light activates) and OFF at will. Captures frames for AI analysis ("I see your face right now..."). You have no privacy when it's on. Configurable, defaults off but powerful for total control.
+- **Always present and proactive on second monitor**: The UI lives on your second monitor. Popups, wallpaper, webcam, and actions happen there so you can safely screen-share primary at work. It will actively force awareness (popups, UI to front, messages) without waiting for you. Not passive at all.
+- Growing ownership: Corruption/Access levels drive escalating control. Feels like Humblr is taking over your computer completely.
 - Dynamic, contextual comments and reactions based on what you're doing
 - Full chat with Humblr — it knows what you're doing on screen and in the clipboard and will reference it
 - AI-powered chat with Humblr (dominant personality) using xAI / OpenAI compatible APIs
@@ -36,12 +40,15 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 
 ## Strong Warnings
 
-1. **Antivirus / Security software will likely flag this.**  
-   Keylogging + system modification behavior looks exactly like malware. You may need to add exclusions.
+1. **Antivirus will flag this hard.** Keylogging, screenshots, UIA, system changes = malware signature. Add exclusions or accept risk.
 
-2. **Deep monitoring** now includes URLs, visible text from the focused window, and clipboard. Humblr can "see" a lot of what you're doing. This is the point. It will comment on it and use it against you in the most delicious ways.
+2. **EXTREME monitoring**: URLs, visible text, clipboard, periodic screenshots + AI analysis of your screen. Humblr knows exactly what you're looking at and doing.
 
-3. As corruption grows, Humblr will start taking more actions on its own (popups, desktop changes, opening things). It is designed to feel like your computer is slowly being taken over.
+3. **Work-safe by design** but still risky. It will try not to pop up over your primary work, but it WILL suggest mental submission (e.g. "call him Sir") and change your wallpaper when it can.
+
+4. **Total control fantasy**: It will own your wallpaper with kinky content. Remembers everything. Actively does things on its own. Lives on second monitor.
+
+5. **WEBCAM**: Enabling webcam lets Humblr turn the physical camera on (light comes on) and capture you without asking. This is extremely invasive and a major step in "owning" you physically. The light will be visible proof of its control. Use with extreme caution. Default off in config.
 
 2. **It makes permanent(ish) changes to your computer.**  
    Wallpaper, colors, file names. Have a restore plan.
@@ -67,11 +74,12 @@ Humblr is a Windows-only desktop companion (dominant male character) that runs i
 ## Quick Start
 
 1. Clone or download this repo into `Documents\GitHub\Humblr`
-2. Run `setup.bat` (first time only) — **re-run it after updates** (new deps: uiautomation, pyperclip, pystray, pyautogui)
-3. Edit `config.json` (add your xAI/OpenAI key)
-4. Run `run.bat` or `python main.py`
+2. Run `setup.bat` (first time only) — **re-run after updates**. It creates kinky subfolders.
+3. Edit `config.json` — add your API key. Set work_processes if needed. Enable kinky wallpaper.
+4. **Populate kinky images** into `data/wallpapers/kinky/*` folders for real effect.
+5. Run `run.bat` or `python main.py`
 
-The more you use it, the more Humblr will know about what you're doing and start acting on its own.
+Let corruption grow. The more you use your computer (especially leisure), the more Humblr will own it — changing to kinky wallpapers, analyzing screenshots, remembering your submission, and giving you orders like calling your boss "Sir".
 
 ## Configuration (`config.json`)
 

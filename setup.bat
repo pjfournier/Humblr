@@ -45,6 +45,7 @@ if not exist data (
     mkdir data\wallpapers\kinky\diapers
     mkdir data\wallpapers\kinky\humiliation
     mkdir data\screenshots
+    mkdir data\webcam
     mkdir logs
 )
 
