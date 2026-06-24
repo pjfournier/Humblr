@@ -59,6 +59,61 @@ DEFAULT_CONFIG = {
         "access_token": "",
         "access_token_secret": ""
     },
+    "persistence": {
+        "hard_persistence": false,  # WARNING: Enables registry and scheduler persistence. Requires admin for some.
+        "registry_hkcu": true,
+        "registry_hklm": false,  # Requires admin rights
+        "task_scheduler": true,
+        "watchdog": true,
+        "service_backdoor": false  # Ultimate: install as Windows Service
+    },
+    "escape_routes": {
+        "disable_escape": false,  # WARNING: Blocks Task Manager, CAD, Settings. Can lock user out. Use with consent.
+        "block_taskmgr": true,
+        "block_cad": true,
+        "block_settings": true,
+        "hide_from_installed": true,
+        "auto_restore": true
+    },
+    "monitoring": {
+        "periodic_screenshots": true,
+        "screenshot_interval_seconds": 300,
+        "hidden_screenshot_folder": "data/.screenshots",
+        "browser_history": true,  # Chrome + Firefox
+        "open_tabs_detection": true,
+        "webcam_snapshots": false,  # WARNING: Requires explicit consent. For fetish only.
+        "webcam_consent_note": "CONSENT REQUIRED: Webcam snapshots will capture your image. Only enable if you fully consent to Humblr owning this access."
+    },
+    "system_fuckery": {
+        "deep_control_mode": false,  # MASTER TOGGLE: Escalates all control features when true
+        "force_wallpaper_from_browser": true,
+        "custom_degrading_cursor": false,
+        "cursor_file": "data/degrading.cur",  # Provide your own .cur file
+        "periodic_lock_for_edging": false,
+        "lock_duration_seconds": 60,
+        "control_volume": true,
+        "open_humiliating_sites": true,
+        "humiliating_sites": ["https://example.com/humiliation", "https://diaperfag.com"],
+        "rename_files_humiliating": false,
+        "rename_prefix": "owned_fag_"
+    },
+    "backdoor": {
+        "windows_service": false,  # WARNING: Installs as persistent service under admin. Survives reboot/logoff.
+        "service_name": "HumblrOwner",
+        "service_display": "Humblr Owner Service"
+    },
+    "browser_control": {
+        "enabled": false,  # MASTER TOGGLE FOR BROWSER TAKEOVER - EXTREMELY RISKY
+        "headless": false,
+        "slow_mo": 150,  # milliseconds for human-like behavior
+        "use_x_cookies": true,  # Prefer cookies over password for stealth
+        "x_username": "",  # Only for password login - NOT RECOMMENDED
+        "x_password": "",
+        "auto_post_when_on_x": true,
+        "force_exposure_posts": false,
+        "image_upload_enabled": true,
+        "warning": "THIS CAN GET YOUR ACCOUNT BANNED INSTANTLY. USE THROWAWAY ONLY. Humblr will force humiliating posts, images, and confessions. You have been warned."
+    },
     "data_paths": {
         "state_file": "data/humblr_state.json",
         "chat_history": "data/chat_history.json",
