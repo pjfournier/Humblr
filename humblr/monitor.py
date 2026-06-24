@@ -12,6 +12,15 @@ import psutil
 import time
 
 try:
+    from contextlib import nullcontext
+except ImportError:
+    # Python < 3.7
+    from contextlib import contextmanager
+    @contextmanager
+    def nullcontext(enter_result=None):
+        yield enter_result
+
+try:
     import win32gui
     import win32process
     import win32api
@@ -97,29 +106,32 @@ class ActivityMonitor:
         if not self.enabled:
             return None
 
-        activity = self._get_active_window()
-        keystrokes = self._count_keystrokes_in_window()
+        # UIAutomation must be initialized per-thread when used from a background thread.
+        # Wrap the UIA-dependent parts (window detection + text extraction) in the required context.
+        if auto is not None:
+            uia_ctx = auto.UiaAutomationInitializerInThread()
+        else:
+            uia_ctx = nullcontext()
 
-        # Enrich with deeper context
-        activity["keystrokes"] = keystrokes
-        activity["timestamp"] = time.time()
-        activity["visible_text"] = self._extract_visible_text_snippet(activity.get("window_title", ""))
-        activity["clipboard"] = self._get_clipboard_snippet()
+        with uia_ctx:
+            activity = self._get_active_window()
+            keystrokes = self._count_keystrokes_in_window()
 
-        # Keylogger text (last ~150 chars typed - for AI to comment on what user is "thinking" or typing)
-        with self._lock:
-            activity["recent_typed"] = ''.join(list(self.text_buffer)[-150:])
-            # For growth: full log when invasiveness allows (more invasive logging)
-            if self.storage.get_invasiveness() >= 4:
-                activity["full_typed"] = ''.join(list(self.text_buffer))
+            # Enrich with deeper context (these may rely on UIA)
+            activity["keystrokes"] = keystrokes
+            activity["timestamp"] = time.time()
+            activity["visible_text"] = self._extract_visible_text_snippet(activity.get("window_title", ""))
+            activity["clipboard"] = self._get_clipboard_snippet()
 
+        # Non-UIA parts
         # Work safety and monitor detection
         activity["is_work"] = self._is_work_context(activity)
         activity["is_secondary_monitor"] = self._is_on_secondary_monitor()
         activity["context_type"] = self._classify_context(activity)
 
-        # Special X content awareness for commenting on what user is actively reading on X
-        if 'twitter' in activity.get("url", "").lower() or 'x.com' in activity.get("url", "").lower():
+        # Special X content awareness
+        url = (activity.get("url") or "").lower()
+        if 'twitter' in url or 'x.com' in url:
             activity["x_content"] = activity.get("visible_text", "")[:300]
 
         with self._lock:
