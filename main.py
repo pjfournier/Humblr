@@ -105,9 +105,25 @@ class HumblrApp:
         # Start tray icon for persistent "I'm here" feeling
         self._start_tray_icon()
 
-        # Humblr lives outside user control: start minimized on secondary monitor.
-        # Background thread runs fully autonomous regardless of UI state.
-        self.ui.root.withdraw()
+        # Make it visible initially so you see something happened.
+        # It will still try to stay on secondary, but show on launch.
+        # Background is fully autonomous.
+        # To hide: minimize it yourself; it will keep acting.
+        self.ui.root.deiconify()
+        self.ui.root.lift()
+
+        # Force an initial presence action so it's obvious it's running
+        self._force_presence_on_secondary({})
+
+        # Force an initial wallpaper change attempt (will use AI gen if key set)
+        try:
+            self._do_wallpaper_update({})
+        except Exception:
+            pass
+
+        # Welcome message
+        if self.ui:
+            self.ui.post_message_from_humblr("Humblr is active and autonomous. Watch your second monitor. Interact (type, browse, switch apps) to feed me and grow my control. I will push and act on my own.")
 
         self.ui.run()
 
@@ -130,6 +146,10 @@ class HumblrApp:
                 is_work = activity.get("is_work", False) if activity else False
                 is_secondary = activity.get("is_secondary_monitor", False) if activity else False
                 context = activity.get("context_type", "general") if activity else "general"
+
+                # Define can_be_aggressive early so all subsequent checks can use it
+                access = self.corruption.get_access_level()
+                can_be_aggressive = (not is_work) or is_secondary or (access >= 4 and is_secondary)
 
                 # Record significant memory occasionally
                 if random.random() < 0.05:
@@ -186,9 +206,7 @@ class HumblrApp:
                     self._force_presence_on_secondary(activity or {})
 
                 # As corruption grows, Humblr gets more aggressive BUT respect work
-                access = self.corruption.get_access_level()
-                can_be_aggressive = (not is_work) or is_secondary or (access >= 4 and is_secondary)
-
+                # (already defined earlier)
                 if access >= 2 and random.random() < 0.1:
                     self._escalate_control(access, activity or {}, can_be_aggressive)
 

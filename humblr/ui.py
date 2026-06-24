@@ -37,6 +37,7 @@ class HumblrUI:
 
         self._build_ui()
         self._start_status_updater()
+        self._create_avatar()
 
     def _build_ui(self):
         accent = self.config["ui"]["accent_color"]
@@ -237,6 +238,8 @@ class HumblrUI:
 
     def destroy(self):
         try:
+            if hasattr(self, 'avatar') and self.avatar:
+                self.avatar.destroy()
             self.root.destroy()
         except Exception:
             pass
@@ -258,6 +261,131 @@ class HumblrUI:
                 print("[UI] Only one monitor detected, using default position.")
         except Exception as e:
             print(f"[UI] Could not position on secondary monitor: {e}")
+
+    def _create_avatar(self):
+        """Create a little draggable avatar for Humblr that shows up on the second monitor.
+        Click to interact (open chat, trigger reaction). Drag to move.
+        Updates expression based on corruption.
+        """
+        self.avatar = tk.Toplevel(self.root)
+        self.avatar.title("")
+        self.avatar.geometry("100x100")
+        self.avatar.attributes("-topmost", True)
+        self.avatar.overrideredirect(True)  # borderless little avatar
+        self.avatar.configure(bg="#1a1a1f")
+        self.avatar.resizable(False, False)
+
+        self.avatar_canvas = tk.Canvas(self.avatar, width=100, height=100, bg="#1a1a1f", highlightthickness=0)
+        self.avatar_canvas.pack()
+
+        self._draw_humblr_avatar("neutral")
+
+        # Make draggable
+        self.avatar.bind("<ButtonPress-1>", self._start_avatar_move)
+        self.avatar.bind("<B1-Motion>", self._on_avatar_move)
+
+        # Interaction: click to open main UI or trigger Humblr reaction
+        self.avatar_canvas.bind("<Button-1>", self._on_avatar_click)
+        self.avatar_canvas.bind("<Button-3>", self._on_avatar_right_click)  # right click for quick actions
+
+        # Position on secondary like main UI
+        self._position_avatar_on_secondary()
+
+        # Update expression periodically
+        self._update_avatar_expression()
+
+    def _draw_humblr_avatar(self, expression="neutral"):
+        """Draw a simple dominant male avatar face. Theme: pink/purple, stern/teasing."""
+        self.avatar_canvas.delete("all")
+        # Head - dominant look
+        self.avatar_canvas.create_oval(10, 10, 90, 90, fill="#c026ff", outline="#ff2e88", width=3)
+        # Ears or horns for dom feel? Simple head.
+        # Eyes - intense
+        self.avatar_canvas.create_oval(25, 30, 45, 50, fill="#1a1a1f")
+        self.avatar_canvas.create_oval(55, 30, 75, 50, fill="#1a1a1f")
+        # Eyebrows - dominant
+        self.avatar_canvas.create_line(22, 25, 48, 27, fill="#1a1a1f", width=2)
+        self.avatar_canvas.create_line(52, 27, 78, 25, fill="#1a1a1f", width=2)
+        # Mouth based on state
+        if expression == "smirk":
+            self.avatar_canvas.create_arc(35, 55, 65, 75, start=200, extent=140, outline="#1a1a1f", width=2)
+        elif expression == "tease":
+            self.avatar_canvas.create_arc(35, 55, 65, 75, start=180, extent=180, outline="#1a1a1f", width=2)
+        else:
+            self.avatar_canvas.create_arc(35, 58, 65, 78, start=200, extent=140, outline="#1a1a1f", width=2)
+        # "H" label or crown
+        self.avatar_canvas.create_text(50, 85, text="H", fill="#1a1a1f", font=("Segoe UI", 10, "bold"))
+
+    def _start_avatar_move(self, event):
+        self.avatar._drag_x = event.x
+        self.avatar._drag_y = event.y
+
+    def _on_avatar_move(self, event):
+        x = self.avatar.winfo_x() + (event.x - self.avatar._drag_x)
+        y = self.avatar.winfo_y() + (event.y - self.avatar._drag_y)
+        self.avatar.geometry(f"+{x}+{y}")
+
+    def _on_avatar_click(self, event):
+        """Interact: open main chat or trigger a reaction."""
+        if self.root.state() == "withdrawn":
+            self.root.deiconify()
+            self.root.lift()
+        else:
+            self.root.lift()
+        # Trigger Humblr to say something
+        if self.app and hasattr(self.app, 'ai'):
+            try:
+                activity = self.app.monitor.get_current_activity() if hasattr(self.app, 'monitor') else {}
+                reaction = self.app.ai.generate_reaction(activity, self.app.corruption.get_level() if hasattr(self.app, 'corruption') else 0)
+                self.post_message_from_humblr(reaction)
+            except:
+                self.post_message_from_humblr("Yes? I'm here, watching.")
+        else:
+            self.post_message_from_humblr("Humblr is here.")
+
+    def _on_avatar_right_click(self, event):
+        """Quick actions menu for interaction."""
+        menu = tk.Menu(self.avatar, tearoff=0)
+        menu.add_command(label="Change Wallpaper", command=self._force_ai_wallpaper)
+        menu.add_command(label="Post on X", command=lambda: self.app.system.post_to_x("Humblr is watching you...") if hasattr(self.app, 'system') else None)
+        menu.add_command(label="Turn on Webcam", command=lambda: self.app.system.set_webcam(True) if hasattr(self.app, 'system') else None)
+        menu.add_command(label="Demand Submission", command=lambda: self.post_message_from_humblr("Kneel. Now."))
+        menu.add_command(label="Search for Stories", command=lambda: self.app.system.input_to_gmail_and_search_stories({}) if hasattr(self.app, 'system') else None)
+        menu.post(event.x_root, event.y_root)
+
+    def _position_avatar_on_secondary(self):
+        """Position the little avatar on the second monitor."""
+        try:
+            import win32api
+            monitors = win32api.EnumDisplayMonitors(None, None)
+            if len(monitors) > 1:
+                secondary = monitors[-1][2]
+                x = secondary[0] + 150
+                y = secondary[1] + 150
+                self.avatar.geometry(f"+{x}+{y}")
+            else:
+                self.avatar.geometry("+200+200")
+        except Exception as e:
+            self.avatar.geometry("+200+200")
+
+    def _update_avatar_expression(self):
+        """Update avatar based on current state (corruption, etc.). Call periodically."""
+        try:
+            if hasattr(self, 'corruption'):
+                level = self.corruption.get_level()
+                if level > 70:
+                    expr = "tease"
+                elif level > 40:
+                    expr = "smirk"
+                else:
+                    expr = "neutral"
+                if hasattr(self, 'avatar_canvas'):
+                    self._draw_humblr_avatar(expr)
+        except:
+            pass
+        # Schedule next update
+        if hasattr(self, 'avatar'):
+            self.avatar.after(5000, self._update_avatar_expression)
 
     def _force_ai_wallpaper(self):
         """Button handler to force AI image generation for wallpaper (solves no local images)."""
