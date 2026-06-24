@@ -10,6 +10,7 @@ import webbrowser
 import tkinter as tk
 import time
 import sys
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional
 
