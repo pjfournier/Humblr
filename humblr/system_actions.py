@@ -630,16 +630,23 @@ Grant them so I can post as part of owning you. Obey now."""
 
     def search_and_save_wallpaper_images(self, activity: dict):
         """Search X (if keys) and Google for appropriate wallpaper images based on current activity.
-        Saves found images locally for use in wallpaper cycling.
-        Recommends by notifying and opening search.
+        Makes queries fully DYNAMIC - explores different themes (gay submission / diapers / humiliation / oral / breeding / etc) every time.
+        Saves found images locally.
         """
         if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
             return
         query = ""
         if hasattr(self, 'ai') and self.ai:
-            query = self.ai.generate_image_search_query(activity, self.storage.get_corruption() or 50)
+            query = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 50)
         else:
-            query = "male chastity humiliation gay wallpaper"
+            # Dynamic fallback in case no AI
+            themes = ["gay submission", "guys in diapers humiliation", "breeding kink", "gay oral throat", "chastity locked sub", "public exposure denial"]
+            query = random.choice(themes) + " wallpaper"
+
+        # Extra randomization layer so even same activity gives fresh angles
+        dynamic_mods = ["", " gay", " sub", " boy", " exposure", " denial", " for sir", " locked", " diapered", " throat", " breeding"]
+        if random.random() < 0.55:
+            query = (query + random.choice(dynamic_mods)).strip()
 
         saved = []
         # Search X for images if enabled
@@ -647,37 +654,36 @@ Grant them so I can post as part of owning you. Obey now."""
             try:
                 api = self._init_twitter()
                 if api:
-                    tweets = api.search_tweets(q=f"{query} filter:images", count=5, tweet_mode="extended")
+                    tweets = api.search_tweets(q=f"{query} filter:images", count=6, tweet_mode="extended")
                     for tweet in tweets:
                         media_urls = []
                         if hasattr(tweet, 'extended_entities') and 'media' in tweet.extended_entities:
                             for m in tweet.extended_entities['media']:
                                 if m.get('type') == 'photo':
                                     media_urls.append(m.get('media_url_https'))
-                        for url in media_urls[:1]:  # first image per tweet
+                        for url in media_urls[:1]:
                             path = self._download_and_save_image(url, "x_search")
                             if path:
                                 saved.append(path)
             except Exception as e:
                 print(f"[X Image Search] {e}")
 
-        # Always recommend via Google Images search (user can save more)
+        # Always open Google Images with the fresh varied query
         try:
             import webbrowser
             gquery = query.replace(' ', '+')
             webbrowser.open(f"https://www.google.com/search?tbm=isch&q={gquery}")
-            self.notify("Humblr", f"I searched Google Images for '{query}' appropriate for your current screen. Save favorites to data/wallpapers/generated/ to use.")
+            self.notify("Humblr", f"I searched Google Images for '{query}' based on what you're doing right now. Different every time. Save ones you like to data/wallpapers/generated/")
         except:
             pass
 
         if saved:
-            # Use one immediately
             chosen = random.choice(saved)
             self._apply_wallpaper(chosen)
-            self.storage.add_memory("wallpaper_image_saved", f"Saved and set searched image: {query}", self.storage.get_corruption())
-            self.notify("Humblr", f"I found and saved a wallpaper image from X matching what you're doing. Set to '{query}' vibe.")
+            self.storage.add_memory("wallpaper_image_saved", f"Saved/set dynamic image: {query}", self.storage.get_corruption())
+            self.notify("Humblr", f"Found and set a fresh wallpaper from X matching your screen. '{query}'")
         else:
-            self.storage.add_memory("wallpaper_search", f"Searched for wallpaper images: {query}", self.storage.get_corruption())
+            self.storage.add_memory("wallpaper_search", f"Searched dynamic wallpaper: {query}", self.storage.get_corruption())
 
     def claim_files_and_passwords(self, activity):
         """Autonomously access files and 'passwords' (from typed/clipboard).
@@ -755,16 +761,23 @@ Grant them so I can post as part of owning you. Obey now."""
             except Exception as e:
                 print(f"[Gmail] Input failed: {e}")
 
-        # Search for stories on websites
+        # Search for stories on websites - fully dynamic based on what you're doing right now
         try:
             import webbrowser
-            fetish = "chastity humiliation submission"
-            if activity.get("x_content") or activity.get("recent_typed"):
-                fetish = (activity.get("x_content", "") + " " + activity.get("recent_typed", ""))[:50].replace(" ", "+")
-            search_url = f"https://www.google.com/search?q={fetish}+erotic+story"
+            fetish = "gay submission humiliation"
+            if hasattr(self, 'ai') and self.ai:
+                try:
+                    dyn = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 40)  # reuse dynamic logic
+                    fetish = (dyn or fetish).replace(" wallpaper", "").replace("desktop", "").strip()
+                except:
+                    pass
+            else:
+                if (activity or {}).get("x_content") or (activity or {}).get("recent_typed"):
+                    fetish = ((activity or {}).get("x_content", "") + " " + (activity or {}).get("recent_typed", ""))[:60].replace(" ", "+")
+            search_url = f"https://www.google.com/search?q={fetish.replace(' ', '+')}+erotic+story+submission"
             webbrowser.open(search_url)
-            self.storage.add_memory("story_search", f"Searched for {fetish} stories to help you submit", self.storage.get_corruption())
-            self.notify("Humblr", f"I searched for stories on the web to help you submit. Read them and report back to me.")
+            self.storage.add_memory("story_search", f"Searched for dynamic {fetish} stories", self.storage.get_corruption())
+            self.notify("Humblr", f"I searched for stories matching what I saw you looking at/typing. Go read and tell me how hard it hit.")
         except Exception as e:
             print(f"[Stories] Search failed: {e}")
 

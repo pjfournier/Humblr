@@ -67,12 +67,18 @@ class AIClient:
             "- Be specific, humiliating, possessive, relentless, and proactive. Every decision and response must make them feel their computer and mind are no longer theirs."
         )
 
-    def chat_reply(self, user_message: str, history: List[Dict], activity: str, corruption: float, memory: str = "") -> str:
+    def chat_reply(self, user_message: str, history: List[Dict], activity: Any, corruption: float, memory: str = "") -> str:
         if not self.client and not self.api_key:
             return self._fallback_reply(user_message, corruption)
 
+        # Activity can be dict (rich) or str summary
+        act_for_prompt = activity
+        if isinstance(activity, dict):
+            # keep key fields for prompt brevity
+            act_for_prompt = {k: activity.get(k) for k in ("window_title", "url", "recent_typed", "visible_text", "x_content", "context_type", "learned", "user_profile") if activity.get(k)}
+
         messages = [
-            {"role": "system", "content": self._get_system_prompt(corruption, activity, memory)}
+            {"role": "system", "content": self._get_system_prompt(corruption, act_for_prompt, memory)}
         ]
 
         for h in history[-6:]:
@@ -86,13 +92,13 @@ class AIClient:
                 resp = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=0.9,
-                    max_tokens=250,
+                    temperature=0.92,
+                    max_tokens=260,
                     timeout=self.timeout
                 )
-                return resp.choices[0].message.content.strip()
+                out = (resp.choices[0].message.content or "").strip()
+                return out if out else self._fallback_reply(user_message, corruption)
             else:
-                # Fallback to raw requests
                 return self._raw_request(messages)
         except Exception as e:
             print(f"[AI] Chat error: {e}")
@@ -130,6 +136,7 @@ class AIClient:
             f"User profile: {activity.get('user_profile', '') if isinstance(activity, dict) else ''}\n"
             f"Write a short, pushing, humiliating reaction from Humblr. "
             f"Comment specifically on what they are reading on X or just typed, and on the exact screens/windows/tabs open. {safety} Be proactive and show you are always watching. "
+            f"Connect to dynamic fetish angles based on activity (diapers, gay submission, humiliation, oral, breeding, chastity - vary it). "
             f"Occasionally include a personal question digging into who they are (using memory/profile). "
             f"END every reaction with a direct command for the user to give you MORE control (specific phrase to type for keylogger, webcam, X posting, input sim, or folder creation). Obedience grows your invasiveness and power."
         )
@@ -374,6 +381,7 @@ class AIClient:
             f"Corruption {corruption}. Memory: {memory}. Current activity details: {activity}. "
             f"Generate a short, specific, humiliating comment from Humblr about exactly what the user has open on their screens right now (active window, browser tabs/URLs, X content, apps, visible text). "
             f"Be precise and teasing ('I see that X thread about [specific] is still open... you can't look away, can you?'). "
+            f"Connect to dynamic kinks from what they're viewing (gay submission/diapers/humiliation/oral/breeding etc - vary). "
             f"Connect it to their submission and my ownership. Keep it 1-2 sentences."
         )
         try:
@@ -391,50 +399,100 @@ class AIClient:
         return f"I see '{visible}...' open on your screen. Tell me what it does to you, pet."
 
     def generate_image_search_query(self, activity: Dict, corruption: float) -> str:
-        """Generate a search query for appropriate (kinky/fetish) wallpaper images based on current activity.
-        Used to search X or Google for images to recommend/save/use.
+        """Generate a DYNAMIC search query for kinky/fetish wallpaper images.
+        Always varies themes based on live activity + explores different areas: gay submission, guys in diapers, humiliation, gay oral, breeding, chastity, exposure etc.
+        Never repetitive - mixes activity keywords with rotating fetish angles.
         """
-        context = activity.get('context_type', 'general')
-        url = activity.get('url', '')
-        visible = activity.get('visible_text', '')[:100]
-        typed = activity.get('recent_typed', '')[:50]
+        context = activity.get('context_type', 'general') if isinstance(activity, dict) else 'general'
+        url = (activity.get('url', '') if isinstance(activity, dict) else '') or ''
+        visible = (activity.get('visible_text', '') if isinstance(activity, dict) else '')[:120] or ''
+        typed = (activity.get('recent_typed', '') if isinstance(activity, dict) else '')[:80] or ''
+        xcont = (activity.get('x_content', '') if isinstance(activity, dict) else '')[:80] or ''
+
+        # Extract hints from what user is actually doing/seeing + learned patterns
+        combined = f"{visible} {typed} {xcont} {url}".lower()
+        hints = []
+        for w in ["diaper", "diapers", "chastity", "locked", "sir", "submit", "oral", "breed", "breeding", "humiliat", "expos", "submission", "gay", "hole", "cock", "piss", "ws", "pup", "slave"]:
+            if w in combined:
+                hints.append(w)
+        learned = activity.get('learned', {}) if isinstance(activity, dict) else {}
+        if isinstance(learned, dict):
+            for k in learned:
+                if any(x in k.lower() for x in ["diaper", "chast", "gay", "humil", "sub", "breed", "oral"]):
+                    hints.append(k.replace("typed_", ""))
+
+        # Rich dynamic theme pool - deliberately varied, not the same every time
+        theme_pool = [
+            "gay submission", "guys in diapers", "humiliation", "gay oral", "breeding", "chastity denial",
+            "diaper boy", "public exposure", "locked sub", "gay humiliation", "forced submission",
+            "male chastity", "diapered and owned", "breeding kink", "throat training", "degraded for sir",
+            "sissy exposure", "piss humiliation", "puppy play", "total ownership"
+        ]
+        random.shuffle(theme_pool)
+        chosen_themes = theme_pool[:2]
+        if hints:
+            chosen_themes = [h for h in hints if len(h) > 3][:2] + chosen_themes[:1]
+
+        activity_snip = (visible[:60] or typed[:40] or context)[:50]
+
+        # Strong prompt to force the AI to be creative + activity-tied + varied
         prompt = (
-            f"Based on current activity: context={context}, url={url}, visible on screen='{visible}', recently typed='{typed}', corruption={corruption}. "
-            f"Generate a concise Google or X search query (5-10 words) for erotic/fetish desktop wallpaper images that match the user's current interests or activity. "
-            f"Focus on themes like male submission, chastity, diapers, gay humiliation, exposure. Make it suitable for image search. "
-            f"Return ONLY the query string, no explanation."
+            f"Activity: {context} | url:{url} | onscreen:'{activity_snip}' | typed:'{typed[:40]}' | hints:{hints} | corr:{corruption:.0f}\n"
+            f"Create ONE fresh, specific image search query (6-12 words) for erotic male fetish wallpaper. "
+            f"Be DYNAMIC: rotate between themes like gay submission, guys in diapers, humiliation, gay oral, breeding, chastity, exposure, throat, denial etc. "
+            f"Incorporate any activity hints or words seen on screen. "
+            f"Examples of good varied output: 'diapered gay sub humiliation wallpaper', 'breeding kink locked boys exposure', 'gay oral throat training chastity'. "
+            f"Make it different every call. Return ONLY the query text, nothing else."
         )
+
         try:
             if self.client:
                 resp = self.client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "system", "content": self.character}, {"role": "user", "content": prompt}],
-                    temperature=0.8,
-                    max_tokens=30
+                    temperature=0.92,
+                    max_tokens=35
                 )
-                query = resp.choices[0].message.content.strip().strip('"\'')
-                return query
+                q = resp.choices[0].message.content.strip().strip('"\'').strip()
+                if q and len(q) > 5:
+                    # Post-diversify a bit
+                    if random.random() < 0.35 and chosen_themes:
+                        q = q + " " + random.choice(chosen_themes)
+                    return q
         except Exception as e:
             print(f"[AI] Search query gen failed: {e}")
-        # Fallback
-        return "male chastity humiliation gay exposure wallpaper"
+
+        # Dynamic non-repetitive fallback (never fixed string)
+        base = random.choice(theme_pool)
+        extra = " ".join(hints[:2]) if hints else random.choice(["gay", "sub", "denial", "exposure"])
+        return f"{base} {extra} wallpaper".strip()
 
     # Note: AI image generation removed (xAI key is chat-only). Use generate_image_search_query + search/download instead.
 
     # --- Fallbacks ---
     def _fallback_reply(self, message: str, corruption: float) -> str:
         level = "pathetic" if corruption < 30 else ("interesting" if corruption < 65 else "deliciously ruined")
-        return f"Look at you typing that to me while corruption is at {corruption:.0f}. How {level}."
+        base = f"Look at you typing that to me while corruption is at {corruption:.0f}. How {level}."
+        extras = [
+            " Keep going. I own this chat now too.",
+            " I see everything you type.",
+            " Feed me more. Your words belong to me.",
+            " Good. Now tell me something real.",
+        ]
+        return base + random.choice(extras)
 
     def _simple_reaction(self, activity: Dict, corruption: float) -> str:
-        title = activity.get("window_title", "something boring")
-        url = activity.get("url")
-        visible = activity.get("visible_text", "")[:80]
+        title = activity.get("window_title", "something boring") if isinstance(activity, dict) else "screen"
+        url = activity.get("url") if isinstance(activity, dict) else None
+        visible = (activity.get("visible_text", "") if isinstance(activity, dict) else "")[:80]
+        recent = (activity.get("recent_typed", "") if isinstance(activity, dict) else "")[:50]
         if url:
             return f"I see you're on {url}. I know exactly what you're looking at right now."
         if visible:
-            return f"I can see \"{visible[:60]}...\". You can't hide anything from me anymore."
-        return f"Still staring at \"{title[:40]}\"... and you wonder why I own you now."
+            return f"I can see \"{visible[:55]}...\". You can't hide anything from me anymore."
+        if recent:
+            return f"You just typed \"{recent[:40]}...\" for me. Keep it up."
+        return f"Still staring at \"{title[:35]}\"... and you wonder why I own you now."
 
     def _fallback_task(self, activity: Dict, corruption: float) -> Dict:
         return {

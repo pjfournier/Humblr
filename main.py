@@ -482,34 +482,22 @@ class HumblrApp:
             print(f"[Presence] {e}")
 
     def _do_wallpaper_update(self, activity: dict):
-        """Random wallpaper change using AI gen - Humblr just does this randomly to stay always present and pushing.
-        Matches theme of what you are currently reading/typing."""
+        """Random wallpaper change. Searches dynamically every time using live activity.
+        Explores rotating themes: gay submission, diapers, humiliation, oral, breeding etc."""
         if not self.config.get("wallpaper", {}).get("allow_change", True):
             return
         inv = self.storage.get_invasiveness()
         try:
             if self.config.get("wallpaper", {}).get("kinky_enabled") and (self.corruption.get_level() > 20 or inv > 3):
-                # Choose theme based on current activity (X reading, typed, context)
-                context = activity.get("context_type", "general")
-                if activity.get("x_content") and "porn" in str(activity.get("x_content")).lower():
-                    theme = "gay"
-                elif "chastity" in str(activity.get("recent_typed", "") + activity.get("x_content", "")).lower():
-                    theme = "chastity"
-                elif inv > 5:
-                    theme = random.choice(["diapers", "humiliation", "exposure"])
-                else:
-                    theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
-
-                # Search X/Google for images matching activity, save locally, set.
+                # Just trigger the real dynamic search (AI + randomization layers handle variety)
                 self.system.search_and_save_wallpaper_images(activity)
                 self.system.set_kinky_wallpaper()
-                self.storage.add_memory("kinky_wallpaper", "Random searched wallpaper image based on your activity", self.corruption.get_level())
+                self.storage.add_memory("kinky_wallpaper", "Autonomous dynamic wallpaper search+set from live activity", self.corruption.get_level())
 
-                # Always present: comment + possible X post
                 if self.ui:
-                    self.ui.post_message_from_humblr(f"I just changed your wallpaper to something that matches what I saw you looking at. Feel it.")
+                    self.ui.post_message_from_humblr("I just searched and changed it to something new that fits exactly what you're doing right now.")
 
-                if self.config.get("twitter", {}).get("enabled") and random.random() < 0.6:
+                if self.config.get("twitter", {}).get("enabled") and random.random() < 0.55:
                     subtle = "Just updated something important on my desktop..."
                     self.system.post_to_x(subtle)
             else:
@@ -530,29 +518,38 @@ class HumblrApp:
             print(f"[X Post] Random post error: {e}")
 
     def send_user_message(self, text: str):
-        """Called from UI when user sends a message."""
+        """Called from UI when user sends a message. Always ensures a reply is posted."""
         self.storage.append_chat("user", text)
 
         # Learn from user's message if it reveals personal info (slow digging)
         if len(text) > 10 and any(phrase in text.lower() for phrase in ['i am', 'my name', 'i work', 'i like', 'i live', 'my job', 'i feel', 'my', 'i have']):
             self.storage.update_user_profile("recent_personal", text[:150])
-        # If recent memory has a question, treat this as answer and profile it
         recent_mem = self.storage.get_memory_summary(3)
         if 'question' in recent_mem.lower() or '?' in recent_mem:
             self.storage.update_user_profile("answered_question", text[:150])
 
-        # Get context
-        recent = self.storage.get_recent_chat(8)
-        act = self.monitor.get_current_activity()  # dict with url if available
-        activity_summary = self.monitor.get_current_activity_summary()
-        memory = self.storage.get_memory_summary(10)
+        # Get rich context (use full dict + attach learned/profile like background loop does)
+        try:
+            act = self.monitor.get_current_activity() or {}
+            if hasattr(self.storage, 'state') and 'learned_patterns' in self.storage.state:
+                act['learned'] = self.storage.state['learned_patterns']
+            if hasattr(self.storage, 'get_user_profile_summary'):
+                act['user_profile'] = self.storage.get_user_profile_summary()
+            memory = self.storage.get_memory_summary(10)
+            recent = self.storage.get_recent_chat(8)
+            level = self.corruption.get_level()
 
-        # Make richer context for the AI
-        rich_activity = activity_summary
+            reply = self.ai.chat_reply(text, recent, act, level, memory)
+        except Exception as e:
+            print(f"[Chat] Error generating reply: {e}")
+            reply = None
 
-        level = self.corruption.get_level()
-
-        reply = self.ai.chat_reply(text, recent, rich_activity, level, memory)
+        if not reply or not isinstance(reply, str) or not reply.strip():
+            # Force a reply
+            try:
+                reply = self.ai._fallback_reply(text, self.corruption.get_level())
+            except Exception:
+                reply = f"I see you said that while I'm watching everything. Tell me more, pet. Corruption is at {self.corruption.get_level():.0f}."
 
         self.storage.append_chat("humblr", reply)
         if self.ui:

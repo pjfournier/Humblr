@@ -121,16 +121,21 @@ class HumblrUI:
         t.start()
 
     def post_message_from_humblr(self, text: str):
-        self._append_chat("Humblr", text, is_humblr=True)
+        # Thread-safe: schedule on main UI thread (Tkinter is not thread-safe)
+        if self.root and self.root.winfo_exists():
+            self.root.after(0, lambda t=text: self._append_chat("Humblr", t, is_humblr=True))
 
     def _append_chat(self, speaker: str, text: str, is_humblr: bool = False):
-        self.chat_display.configure(state="normal")
-        color = "#c026ff" if is_humblr else "#aaaaaa"
-        prefix = f"[{speaker}] "
-        self.chat_display.insert("end", prefix, ("speaker",))
-        self.chat_display.insert("end", text + "\n\n")
-        self.chat_display.see("end")
-        self.chat_display.configure(state="disabled")
+        try:
+            self.chat_display.configure(state="normal")
+            prefix = f"[{speaker}] "
+            self.chat_display.insert("end", prefix, ("speaker",))
+            self.chat_display.insert("end", text + "\n\n")
+            self.chat_display.see("end")
+            self.chat_display.configure(state="disabled")
+        except Exception:
+            # Fallback print if UI broken
+            print(f"[UI] {speaker}: {text[:120]}...")
 
     def _send_message(self, event=None):
         text = self.user_input.get().strip()

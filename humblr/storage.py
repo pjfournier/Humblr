@@ -171,8 +171,8 @@ class Storage:
             patterns[domain] = patterns.get(domain, 0) + 1
         typed = activity.get("recent_typed", "")
         if typed:
-            # Simple "learning" - count keywords for fetish escalation
-            for word in ["chastity", "diaper", "sir", "owned", "locked"]:
+            # Simple "learning" - count keywords for fetish escalation (used to target future dynamic searches)
+            for word in ["chastity", "diaper", "diapers", "sir", "owned", "locked", "submit", "humiliation", "breed", "oral", "exposure", "gay", "sub"]:
                 if word in typed.lower():
                     patterns[f"typed_{word}"] = patterns.get(f"typed_{word}", 0) + 1
         # Slowly grow invasiveness over time/activity

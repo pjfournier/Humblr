@@ -137,6 +137,14 @@ class ActivityMonitor:
         with self._lock:
             self.current_activity = activity
 
+        # Flush recent typed text from buffer so AI sees what user is actually typing (critical for dynamic comments/reactions/searches)
+        try:
+            with self._lock:
+                recent_chars = ''.join(list(self.text_buffer)[-250:])
+                activity["recent_typed"] = recent_chars[-400:] if recent_chars else ""
+        except Exception:
+            activity["recent_typed"] = activity.get("recent_typed", "") or ""
+
         # Store some stats
         self.storage.increment("total_keystrokes", keystrokes)
 
