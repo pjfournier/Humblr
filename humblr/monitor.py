@@ -129,10 +129,12 @@ class ActivityMonitor:
         activity["is_secondary_monitor"] = self._is_on_secondary_monitor()
         activity["context_type"] = self._classify_context(activity)
 
-        # Special X content awareness
+        # Special X and Discord content awareness
         url = (activity.get("url") or "").lower()
         if 'twitter' in url or 'x.com' in url:
             activity["x_content"] = activity.get("visible_text", "")[:300]
+        if activity.get("context_type") == "discord":
+            activity["discord_content"] = activity.get("visible_text", "")[:400]
 
         with self._lock:
             self.current_activity = activity
@@ -369,6 +371,9 @@ class ActivityMonitor:
         if x_content:
             base += f"\nOn X reading: {x_content}..."
 
+        if activity.get("discord_content"):
+            base += f"\nOn Discord: {activity.get('discord_content')[:150]}..."
+
         if visible:
             base += f"\nVisible on screen: {visible}..."
 
@@ -450,11 +455,13 @@ class ActivityMonitor:
         proc = (activity.get("process_name") or "").lower()
         url = (activity.get("url") or "").lower()
 
+        if "discord" in proc or "discord" in title:
+            return "discord"
         if any(x in title + proc for x in ["porn", "onlyfans", "chaturbate", "xvideos", "pornhub", "reddit.com/r/"]):
             return "leisure_porn"
         if any(x in url for x in ["reddit", "twitter", "x.com", "instagram", "tiktok", "youtube"]):
             return "leisure_social"
-        if any(x in proc for x in ["game", "steam", "discord"]):
+        if any(x in proc for x in ["game", "steam"]):
             return "gaming"
         if activity.get("is_work"):
             return "work"

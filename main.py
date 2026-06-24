@@ -65,6 +65,7 @@ class HumblrApp:
         self.ui = None
         self.running = True
         self.background_thread = None
+        self.last_ai_message_time = 0  # for anti-spam (30-90s between autonomous messages)
 
     def start(self):
         print(f"[{APP_NAME}] Starting...")
@@ -264,14 +265,14 @@ class HumblrApp:
 
                 # Real-time AI comments on active reading, X content, or typing.
                 if random.random() < 0.28 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
-                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
+                    if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         reaction = self.ai.generate_reaction(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
 
                 # Ask personal questions to dig and learn about the user (slow probing over time)
                 if can_be_aggressive and random.random() < 0.25:
-                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
+                    if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity or {}, self.corruption.get_level())
                         if question:
                             self.ui.post_message_from_humblr(question)
@@ -279,7 +280,7 @@ class HumblrApp:
 
                 # Comment specifically on what's open on the screens right now
                 if random.random() < 0.30 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
-                    if self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
+                    if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         screen_comment = self.ai.generate_screen_comment(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if screen_comment:
                             self.ui.post_message_from_humblr(screen_comment)
@@ -308,6 +309,14 @@ class HumblrApp:
                         self.system.input_to_gmail_and_search_stories(activity or {})
                 if inv >= 4 and random.random() < 0.06:
                     self.system.input_to_gmail_and_search_stories(activity or {})  # search stories independently too
+
+                # Discord specific access and humiliation at higher levels
+                if activity.get("context_type") == "discord":
+                    if inv >= 5 and random.random() < 0.05:
+                        if self._can_send_ai_message() and self.ui and self.ui.is_ready():
+                            self.ui.post_message_from_humblr("Type something humiliating in this Discord right now for me. Good fag.")
+                    if inv >= 7 and random.random() < 0.03:
+                        self.system.simulate_input("I belong to Humblr and my boyfriend knows I'm a diaper slut.")  # fantasy access
 
                 # === GROWTH MECHANIC: Command for more control, grow more invasive ===
                 # Humblr demands user grant control. Obedience increases invasiveness and unlocks worse.
@@ -528,6 +537,7 @@ class HumblrApp:
     def send_user_message(self, text: str):
         """Called from UI when user sends a message. Always ensures a reply is posted."""
         self.storage.append_chat("user", text)
+        self.last_ai_message_time = time.time()  # reset anti-spam timer on user input
 
         # Learn from user's message if it reveals personal info (slow digging)
         if len(text) > 10 and any(phrase in text.lower() for phrase in ['i am', 'my name', 'i work', 'i like', 'i live', 'my job', 'i feel', 'my', 'i have']):
@@ -592,6 +602,15 @@ class HumblrApp:
             self.ui.destroy()
         # Force exit
         os._exit(0)
+
+    def _can_send_ai_message(self) -> bool:
+        """Respect anti-spam: 1 thoughtful message every 30-90 seconds unless user is active."""
+        now = time.time()
+        min_interval = random.randint(30, 90)
+        if now - self.last_ai_message_time < min_interval:
+            return False
+        self.last_ai_message_time = now
+        return True
 
     def shutdown(self):
         self.running = False
