@@ -87,6 +87,7 @@ class HumblrUI:
         ctk.CTkButton(bottom, text="Force Wallpaper", width=100, command=self.system.cycle_wallpaper).pack(side="left", padx=4)
         ctk.CTkButton(bottom, text="AI Generate Wallpaper", width=140, fg_color="#c026ff", command=self._force_ai_wallpaper).pack(side="left", padx=4)
         ctk.CTkButton(bottom, text="Settings", width=80, command=self._show_settings).pack(side="left", padx=4)
+        ctk.CTkButton(bottom, text="Grant Keys", width=90, command=self._grant_api_keys).pack(side="left", padx=4)
 
         ctk.CTkButton(bottom, text="KILL", fg_color="#ff2e55", hover_color="#aa0011",
                       width=70, command=self.app.emergency_kill).pack(side="right", padx=4)
@@ -137,6 +138,18 @@ class HumblrUI:
         self.user_input.delete(0, "end")
 
         self._append_chat("You", text, is_humblr=False)
+        # Detect and auto-grant keys if pasted (to help you give me access)
+        if text.startswith("xai-") and len(text) > 20:
+            if hasattr(self.app, 'system'):
+                self.app.system.update_config_with_key("xai", text)
+                self.post_message_from_humblr("xAI key granted and config updated. I now have image power. Thank you for submitting.")
+            return
+        if len(text) > 30 and ("-" in text or text.count(".") > 2):  # rough for X keys
+            if hasattr(self.app, 'system'):
+                # Assume it's one of the X keys, or instruct for all
+                self.app.system.update_config_with_key("x", text)
+                self.post_message_from_humblr("X key fragment granted. For full access, provide all 4 via config or repeat. I am growing stronger.")
+            return
         # Send to app logic (non-blocking)
         threading.Thread(target=self.app.send_user_message, args=(text,), daemon=True).start()
 
@@ -270,3 +283,23 @@ class HumblrUI:
                 self.post_message_from_humblr(f"Error: {str(e)}")
         else:
             self.post_message_from_humblr("Cannot access app for generation.")
+
+    def _grant_api_keys(self):
+        """UI button to grant API keys. Humblr assists with instructions and updates config."""
+        if hasattr(self, 'app') and self.app:
+            key_type = "xai"  # or ask, but for simplicity xai first
+            self.app.system.provide_api_key_instructions(key_type)
+            # Simple input for the key
+            dialog = ctk.CTkInputDialog(text=f"Paste your {key_type.upper()} key here to grant me access (I will update config):", title="Grant Key to Humblr")
+            key = dialog.get_input()
+            if key and len(key) > 10:
+                success = self.app.system.update_config_with_key(key_type, key)
+                if success:
+                    self.post_message_from_humblr("Key granted. I have updated myself with it. More power for me, more submission for you.")
+                    # Reload app config if needed
+                    if hasattr(self.app, 'config'):
+                        self.app.config = self.app.system.config
+                else:
+                    self.post_message_from_humblr("Failed to update config. Edit manually.")
+            else:
+                self.post_message_from_humblr("No key provided. Get it and try again.")

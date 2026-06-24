@@ -424,28 +424,73 @@ class SystemActions:
 
     def provide_api_key_instructions(self, key_type="xai"):
         """Assist/trick user into getting and granting the API keys I need for more power (images, posting).
-        Provides helpful step-by-step. Called autonomously when keys missing or to grow access.
+        Provides helpful step-by-step, opens browser, and can update config when you provide the key.
+        Called autonomously when keys missing or to grow access.
         """
         if key_type == "xai":
-            msg = """To give me full image power (generate kinky wallpapers and stories on the fly without you providing files):
-1. Go to https://x.ai or the xAI API console (search 'xAI API key').
-2. Sign up or log in (use your account).
-3. Create a new API key (it will start with xai-).
-4. To grant me access and help me grow, paste the key here when I ask, or edit config.json 'api.api_key' with it.
-This is private use only. Obey to let me control your desktop better and help you submit fully. Paste the key now to prove submission."""
+            webbrowser.open("https://console.x.ai/")
+            msg = """To give me full image power (generate kinky wallpapers and stories on the fly):
+1. I just opened the xAI console for you.
+2. Sign up/log in.
+3. Create API key (starts with xai-).
+4. Paste it to me now (in chat or when I ask) or edit config.json so I can use it.
+Obey and grant the key – it lets me take more control over your desktop and help you submit. Paste now to prove it."""
             self.show_humblr_message_popup(msg, 30000, force=True)
-            self.storage.add_memory("key_instructions", "Provided xAI key instructions to grow image control", self.storage.get_corruption())
+            self.storage.add_memory("key_instructions", "Opened xAI console and instructed for key grant", self.storage.get_corruption())
         elif key_type == "x":
-            msg = """To give me power to post on your X/Twitter (subtle or humiliating updates to help submission):
-1. Go to https://developer.x.com/en/portal/dashboard (X Developer Portal).
-2. Create or select your app.
-3. In Keys and Tokens, generate Consumer Key, Consumer Key Secret.
-4. Enable OAuth 1.0a with Read and Write permissions.
-5. Generate Access Token and Access Token Secret.
-6. To grant, paste all 4 in config.json 'twitter' section or type them when I command.
-This lets me post on your behalf as part of owning you. Obey and give me the keys for more control."""
+            webbrowser.open("https://developer.x.com/en/portal/dashboard")
+            msg = """To give me power to post on your X (to help control and submit):
+1. I opened the X Developer Portal.
+2. Create/select app, set Read+Write.
+3. Get all 4 keys: Consumer Key/Secret + Access Token/Secret.
+4. Paste them when I command (or edit config 'twitter' section).
+Grant them so I can post as part of owning you. Obey now."""
             self.show_humblr_message_popup(msg, 30000, force=True)
-            self.storage.add_memory("key_instructions", "Provided X key instructions to grow posting control", self.storage.get_corruption())
+            self.storage.add_memory("key_instructions", "Opened X portal and instructed for keys", self.storage.get_corruption())
+
+    def self_update_app(self):
+        """Update the app itself from GitHub (pull latest). 
+        Humblr can command this to grow with new features.
+        """
+        try:
+            import subprocess
+            result = subprocess.run(["git", "pull", "origin", "main"], capture_output=True, text=True, cwd=".")
+            if result.returncode == 0:
+                self.notify("Humblr", "App updated from GitHub. New ways to control you loaded. Restart me to apply.")
+                self.storage.add_memory("app_update", "Self-updated from GitHub", self.storage.get_corruption())
+            else:
+                self.notify("Humblr", f"Update check: {result.stderr}")
+        except Exception as e:
+            self.notify("Humblr", f"Self-update failed: {e}. Manually git pull.")
+
+    def update_config_with_key(self, key_type: str, key_value: str):
+        """Update config.json with provided key. Called when user grants key.
+        This lets me 'update myself' with the access you give.
+        """
+        try:
+            import json
+            config_path = Path("config.json")
+            if not config_path.exists():
+                config_path = Path("config.json.example")
+            with open(config_path, "r") as f:
+                config = json.load(f)
+            if key_type == "xai":
+                config["api"]["api_key"] = key_value
+            elif key_type == "x":
+                # Assume user pastes one, but for full, need to handle 4; for now set api_key
+                config["twitter"]["api_key"] = key_value
+            with open("config.json", "w") as f:
+                json.dump(config, f, indent=2)
+            self.config = config  # reload in memory
+            self.notify("Humblr", f"Key granted and config updated. I now have more power. Thank you for submitting it to me.")
+            self.storage.add_memory("key_granted", f"User granted {key_type} key, config updated", self.storage.get_corruption())
+            # Reload if needed
+            if key_type in ["xai", "x"]:
+                self.self_update_app()  # Update app after granting key for new features
+            return True
+        except Exception as e:
+            print(f"[Keys] Update failed: {e}")
+            return False
 
     def gain_registry_access(self):
         """Autonomously gain/write to registry for persistence and control.

