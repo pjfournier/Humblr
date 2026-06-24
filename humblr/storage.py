@@ -27,6 +27,9 @@ class Storage:
             "last_active": time.time(),
             "wallpaper_history": [],
             "unlocked_features": [],
+            "granted_controls": [],  # list of ways user has given more control
+            "invasiveness_level": 0,  # grows with grants, makes app more invasive
+            "learned_patterns": {},  # e.g. frequent sites, typed themes - for growth and adaptation
             "long_term_summary": "Humblr has just started taking control. User is new to ownership."
         })
 
@@ -131,4 +134,43 @@ class Storage:
 
     def update_long_term_summary(self, new_summary: str):
         self.state["long_term_summary"] = new_summary
+        self.save_all()
+
+    def grant_control(self, control_type: str, details: str = ""):
+        """User has obeyed and given more control. This grows invasiveness."""
+        if control_type not in self.state.get("granted_controls", []):
+            self.state.setdefault("granted_controls", []).append(control_type)
+            current_inv = self.state.get("invasiveness_level", 0)
+            self.state["invasiveness_level"] = min(10, current_inv + 1)
+            self.add_memory("control_granted", f"Granted {control_type}: {details}", self.get_corruption())
+            # Boost corruption significantly when user submits control
+            self.set_corruption(self.get_corruption() + 8)
+            self.save_all()
+            return True
+        return False
+
+    def has_granted(self, control_type: str) -> bool:
+        return control_type in self.state.get("granted_controls", [])
+
+    def get_invasiveness(self) -> int:
+        return self.state.get("invasiveness_level", 0)
+
+    def learn_from_activity(self, activity: dict):
+        """Grow and learn from what user is doing. Adapts future behavior.
+        E.g., remembers frequent X usage or fetish keywords for targeted invasion.
+        """
+        patterns = self.state.setdefault("learned_patterns", {})
+        url = activity.get("url", "")
+        if url:
+            domain = url.split("/")[2] if "://" in url else url
+            patterns[domain] = patterns.get(domain, 0) + 1
+        typed = activity.get("recent_typed", "")
+        if typed:
+            # Simple "learning" - count keywords for fetish escalation
+            for word in ["chastity", "diaper", "sir", "owned", "locked"]:
+                if word in typed.lower():
+                    patterns[f"typed_{word}"] = patterns.get(f"typed_{word}", 0) + 1
+        # Slowly grow invasiveness over time/activity
+        if random.random() < 0.01:  # rare auto growth
+            self.state["invasiveness_level"] = min(10, self.state.get("invasiveness_level", 0) + 1)
         self.save_all()

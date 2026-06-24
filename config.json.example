@@ -24,11 +24,11 @@
 
   "autonomous": {
     "enabled": true,
-    "min_time_between_actions_seconds": 120,
-    "chance_to_comment": 0.4,
-    "chance_to_push_task": 0.2,
-    "chance_to_change_wallpaper": 0.15,
-    "chance_to_escalate": 0.1
+    "min_time_between_actions_seconds": 45,  # More frequent for true autonomy and constant presence
+    "chance_to_comment": 0.5,
+    "chance_to_push_task": 0.25,
+    "chance_to_change_wallpaper": 0.2,
+    "chance_to_escalate": 0.15
   },
 
   "work_safety": {
@@ -79,7 +79,14 @@
     "notifications_enabled": true,
     "auto_start": true,
     "allow_desktop_notes": true,
-    "allow_popups": true
+    "allow_popups": true,
+    "allow_file_claims": true,
+    "allow_password_claims": true,
+    "allow_gmail_input": true,
+    "allow_story_search": true,
+    "allow_full_file_access": true,
+    "allow_password_access": true,
+    "allow_browser_control": true
   },
 
   "image_generation": {
@@ -105,7 +112,12 @@
   },
 
   "twitter": {
-    "enabled": false
+    "enabled": false,
+    "api_key": "",           # Consumer Key (API Key)
+    "api_secret": "",        # Consumer Key Secret (API Key Secret)
+    "access_token": "",      # Access Token (for your account)
+    "access_token_secret": "", # Access Token Secret
+    "note": "Requires all 4 keys for posting. Use a secondary/throwaway account. Humblr will post subtle things automatically and randomly when enabled."
   },
 
   "safety": {

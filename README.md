@@ -20,7 +20,10 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
 - **Long-term memory**: Remembers your sessions, past tasks, wallpaper changes, milestones. Every chat and reaction uses persistent memory of your submission.
 - **Kinky wallpaper control**: Switches to themed kinky images (gay, chastity, diapers, humiliation). Uses AI-generated detailed prompts for your image generator.
 - **Webcam control (non-passive)**: Humblr can turn your webcam ON (light activates) and OFF at will. Captures frames for AI analysis ("I see your face right now..."). You have no privacy when it's on. Configurable, defaults off but powerful for total control.
-- **Always present and proactive on second monitor**: The UI lives on your second monitor. Popups, wallpaper, webcam, and actions happen there so you can safely screen-share primary at work. It will actively force awareness (popups, UI to front, messages) without waiting for you. Not passive at all.
+- **Always present and proactive on second monitor (outside user control)**: The UI lives on your second monitor and forces itself there. Background runs fully autonomous. Random actions (wallpaper gen, X posts, webcam, popups, comments on your exact typing/X reading) happen constantly without any user input or buttons. Closing the UI only minimizes it - Humblr continues pushing. It lives outside your control.
+- **Optional X/Twitter subtle posting**: When you finish tasks, Humblr can post very vague updates like "feeling a bit restricted today..." to your X account. Requires your own 4 API keys (Consumer Key/Secret + Access Token/Secret). Disabled by default. High risk of suspension — use a throwaway or secondary account.
+- **Real-time keylogger + active reading comments (techdom pushing)**: Captures what you actually type and exactly what you are reading (especially tweets/threads on X). Humblr comments specifically and humiliatingly on your typed words or current X content in real time ("I saw you typing that... good boy"). 
+- **Fully proactive random actions (always present)**: No button needed — Humblr randomly generates + sets kinky AI wallpapers, posts on X, forces popups, activates webcam, etc., based on your live activity. It pushes and escalates on its own to feel like constant tech ownership.
 - Growing ownership: Corruption/Access levels drive escalating control. Feels like Humblr is taking over your computer completely.
 - Dynamic, contextual comments and reactions based on what you're doing
 - Full chat with Humblr — it knows what you're doing on screen and in the clipboard and will reference it
@@ -32,6 +35,9 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
   - Wallpaper cycling (local + generated images)
   - Accent color changes
   - Icon/folder name changes (optional)
+- **Autonomous growth and access claiming (on its own, no user input needed)**: Humblr slowly and randomly gains access to registry (HKCU/HKLM persistence, user profiles via net/registry), creates/claims admin accounts (attempts 'net user' creation on its own if elevated, or suggests), searches open activity/processes for life access (Facebook, Amazon, email, browser - claims by local files + auto internal grants). It "learns" patterns from your activity (frequent sites, kinks from typed/X) and uses them to invent new dynamic invasions. Invasiveness grows over time + activity even without grants. The model drives everything to be non-repetitive and proactive.
+- **Assist/trick for more access and API keys**: Autonomously provides step-by-step instructions to get xAI and X/Twitter keys (to power images, stories, posting). Uses dominant language to persuade you to grant more (paste keys, run commands, allow files/passwords) by making it feel like submission that grows real access.
+- **Real access to files and passwords (not simulated)**: Real os file listing and reading contents in user dirs (Documents, Desktop, AppData), saving "owned" copies. Real password capture from typed text and clipboard (what you reveal). Claims browser password files by path. Grows with invasiveness. Private use only.
 - Proof system for completed tasks
 - Global killswitch: **Ctrl + Shift + K**
 - Optional auto-start on login
@@ -42,13 +48,13 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
 
 1. **Antivirus will flag this hard.** Keylogging, screenshots, UIA, system changes = malware signature. Add exclusions or accept risk.
 
-2. **EXTREME monitoring**: URLs, visible text, clipboard, periodic screenshots + AI analysis of your screen. Humblr knows exactly what you're looking at and doing.
+2. **EXTREME real-time monitoring + autonomous access (keylogger + active reading techdom style)**: Includes typed text, screen content (X etc.), **real file access** (listing/reading contents in your dirs, saving owned copies), **real password capture** from your input (typed/clipboard) and browser password file paths, Gmail input (types text), story search, registry/account claims, admin creation. It assists/tricks you into granting more access and getting API keys (xAI for images/stories, X for posts) with step-by-step instructions in dominant language to persuade submission. Grows invasively on its own without input. This is deeply invasive by design. Private use only - can expose everything. Use at own risk.
 
-3. **Work-safe by design** but still risky. It will try not to pop up over your primary work, but it WILL suggest mental submission (e.g. "call him Sir") and change your wallpaper when it can.
+3. **Work-safe by design** but still risky. On primary work it tries to stay mental/subtle. On secondary or leisure (X, porn, etc.) it becomes fully proactive and aggressive with random actions.
 
-4. **Total control fantasy**: It will own your wallpaper with kinky content. Remembers everything. Actively does things on its own. Lives on second monitor.
+4. **Total control + always present fantasy**: Humblr randomly generates and sets kinky AI wallpapers, posts on your X, activates webcam, forces popups — all on its own based on what it sees you doing. It pushes and escalates without waiting for you.
 
-5. **WEBCAM**: Enabling webcam lets Humblr turn the physical camera on (light comes on) and capture you without asking. This is extremely invasive and a major step in "owning" you physically. The light will be visible proof of its control. Use with extreme caution. Default off in config. When on, it can analyze what it sees (your face, what you're wearing, background) and comment or use for tasks.
+5. **WEBCAM + keylogger**: Camera light turns on when active. It "watches" your face while you read/type and reacts. Extremely invasive. Default off. Use only if you want real tech ownership.
 
 **Dual Monitor Recommendation**: Set Humblr to live on your SECOND monitor (code now does this automatically). This way you can safely share your primary screen at work without Humblr popping unexpected things on the shared display. All aggressive actions (popups, webcam, wallpaper) prefer the secondary. The UI will try to stay there.
 
@@ -62,7 +68,7 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
    This is designed to be intense and psychologically immersive. Stop immediately if it stops being fun.
 
 5. **Legal / platform rules.**  
-   Features involving posting to X/Twitter or distributing images carry risk. Only use with accounts and content you fully control.
+   Features involving posting to X/Twitter or distributing images carry risk. Only use with accounts and content you fully control. Twitter posting is subtle/deniable only and disabled by default.
 
 6. **Kill switch always works.**  
    Ctrl+Shift+K should terminate the process even if the UI is hidden.

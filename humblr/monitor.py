@@ -55,9 +55,12 @@ class ActivityMonitor:
             "visible_text": "",
             "clipboard": "",
             "keystrokes": 0,
+            "recent_typed": "",
+            "x_content": "",
         }
 
         self.keystroke_buffer = deque(maxlen=500)
+        self.text_buffer = deque(maxlen=400)  # actual typed chars for keylogger feature
         self._last_sample_time = time.time()
         self._pending_comment: Optional[str] = None
         self._lock = threading.Lock()
@@ -79,6 +82,16 @@ class ActivityMonitor:
     def _on_key_press(self, key):
         with self._lock:
             self.keystroke_buffer.append(time.time())
+            # Capture actual typed text for keylogger / commenting on what user is "saying" or thinking
+            try:
+                if hasattr(key, 'char') and key.char is not None:
+                    self.text_buffer.append(key.char)
+                elif key == keyboard.Key.space:
+                    self.text_buffer.append(' ')
+                elif key == keyboard.Key.enter:
+                    self.text_buffer.append('\n')
+            except:
+                pass
 
     def poll(self) -> Optional[Dict[str, Any]]:
         if not self.enabled:
@@ -93,10 +106,21 @@ class ActivityMonitor:
         activity["visible_text"] = self._extract_visible_text_snippet(activity.get("window_title", ""))
         activity["clipboard"] = self._get_clipboard_snippet()
 
+        # Keylogger text (last ~150 chars typed - for AI to comment on what user is "thinking" or typing)
+        with self._lock:
+            activity["recent_typed"] = ''.join(list(self.text_buffer)[-150:])
+            # For growth: full log when invasiveness allows (more invasive logging)
+            if self.storage.get_invasiveness() >= 4:
+                activity["full_typed"] = ''.join(list(self.text_buffer))
+
         # Work safety and monitor detection
         activity["is_work"] = self._is_work_context(activity)
         activity["is_secondary_monitor"] = self._is_on_secondary_monitor()
         activity["context_type"] = self._classify_context(activity)
+
+        # Special X content awareness for commenting on what user is actively reading on X
+        if 'twitter' in activity.get("url", "").lower() or 'x.com' in activity.get("url", "").lower():
+            activity["x_content"] = activity.get("visible_text", "")[:300]
 
         with self._lock:
             self.current_activity = activity
@@ -302,6 +326,8 @@ class ActivityMonitor:
         url = act.get("url")
         visible = act.get("visible_text", "")[:150]
         clip = act.get("clipboard", "")[:80]
+        recent_typed = act.get("recent_typed", "")[:120]
+        x_content = act.get("x_content", "")[:120]
         context = act.get("context_type", "general")
         work_flag = "WORK" if act.get("is_work") else "LEISURE"
         monitor = "SECONDARY" if act.get("is_secondary_monitor") else "PRIMARY"
@@ -313,8 +339,14 @@ class ActivityMonitor:
             short_url = url[:65] + "..." if len(url) > 65 else url
             base += f"\nURL: {short_url}"
 
+        if recent_typed:
+            base += f"\nRecently typed: {recent_typed}..."
+
+        if x_content:
+            base += f"\nOn X reading: {x_content}..."
+
         if visible:
-            base += f"\nVisible: {visible}..."
+            base += f"\nVisible on screen: {visible}..."
 
         if clip:
             base += f"\nClipboard: {clip}..."

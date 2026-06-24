@@ -59,6 +59,7 @@ class HumblrApp:
         self.corruption = CorruptionEngine(self.config, self.storage)
         self.tasks = TaskManager(self.config, self.storage, self.ai)
         self.system = SystemActions(self.config, self.storage)
+        self.system.ai = self.ai  # allow direct AI image gen calls from UI/system
 
         self.ui = None
         self.running = True
@@ -93,8 +94,20 @@ class HumblrApp:
         self.ui.post_message_from_humblr("There you are. I've been waiting to take full control. Your computer is mine now. Your mind will follow.")
         self.storage.add_memory("startup", "User launched Humblr. Ownership begins.", 0)
 
+        # Assist with API keys if missing - trick/assist to grant access for more power
+        api_key = self.config.get("api", {}).get("api_key", "")
+        tw = self.config.get("twitter", {})
+        if "YOUR" in api_key or not api_key:
+            self.system.provide_api_key_instructions("xai")
+        if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
+            self.system.provide_api_key_instructions("x")
+
         # Start tray icon for persistent "I'm here" feeling
         self._start_tray_icon()
+
+        # Humblr lives outside user control: start minimized on secondary monitor.
+        # Background thread runs fully autonomous regardless of UI state.
+        self.ui.root.withdraw()
 
         self.ui.run()
 
@@ -125,6 +138,22 @@ class HumblrApp:
                         f"{context} on {activity.get('window_title', 'unknown')}",
                         self.corruption.get_level()
                     )
+
+                # Grow and learn on its own from activity
+                self.storage.learn_from_activity(activity or {})
+                if hasattr(self.storage, 'state') and 'learned_patterns' in self.storage.state:
+                    activity['learned'] = self.storage.state['learned_patterns']
+
+                # Slow autonomous growth over time (even without grants) - Humblr gets more invasive just by existing and learning
+                if random.random() < 0.01:  # accumulates over time
+                    current_inv = self.storage.get_invasiveness()
+                    self.storage.state["invasiveness_level"] = min(10, current_inv + 1)
+                    self.storage.add_memory("slow_growth", "Grew more invasive just by running, watching, and learning your patterns", self.corruption.get_level())
+                    # Unlock more access as it grows
+                    if current_inv >= 3:
+                        self.system.claim_files_and_passwords(activity or {})
+                    if current_inv >= 6:
+                        self.system.input_to_gmail_and_search_stories(activity or {})
 
                 # Periodic screenshot + auto analysis at higher corruption
                 monitor_cfg = self.config.get("monitoring", {})
@@ -165,17 +194,126 @@ class HumblrApp:
 
                 # Autonomous actions - guarded by work safety
                 now = time.time()
-                min_interval = autonomous.get("min_time_between_actions_seconds", 120)
+                # Lower interval for more frequent autonomous actions (outside user control)
+                min_interval = autonomous.get("min_time_between_actions_seconds", 60)
                 if (now - last_action_time) > min_interval and autonomous.get("enabled", True):
                     if self.ui and self.ui.is_ready():
                         self._maybe_do_autonomous_action(activity or {}, can_be_aggressive)
                         last_action_time = now
 
-                # Push comments
-                if self.monitor.has_pending_comment():
-                    comment = self.monitor.get_pending_comment()
-                    if comment and self.ui:
-                        self.ui.post_message_from_humblr(comment)
+                # === FULL AUTONOMY: Humblr acts randomly and proactively OUTSIDE user control ===
+                # These fire independently and frequently. No user input or buttons needed.
+                # It lives on the second monitor and pushes constantly using all sensor data.
+
+                # Wallpaper: Random AI-generated kinky changes via xAI (no local images required).
+                # More invasive at high levels (bolder themes, immediate force).
+                if can_be_aggressive and random.random() < (0.15 + min(0.15, self.storage.get_invasiveness() * 0.02)):
+                    self._do_wallpaper_update(activity or {})
+
+                # X/Twitter: Autonomous posting using their keys, triggered by activity.
+                if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
+                    self._do_random_x_post(activity or {})
+
+                # Webcam: Random on/off to watch them.
+                if self.config.get("webcam", {}).get("enabled", False) and can_be_aggressive:
+                    if self.corruption.get_level() > 40 and not self.system.get_webcam_status() and random.random() < 0.08:
+                        self.system.set_webcam(True)
+                        frame = self.system.capture_webcam_frame("autonomous_watch")
+                        if frame and self.ui:
+                            reaction = self.ai.analyze_screenshot(frame, activity or {}, self.corruption.get_level())
+                            self.ui.post_message_from_humblr(f"[WEBCAM WATCH] {reaction}")
+                    elif self.corruption.get_level() < 25 and self.system.get_webcam_status() and random.random() < 0.15:
+                        self.system.set_webcam(False)
+
+                # Force presence on second monitor (popups, UI lift, comments).
+                if can_be_aggressive and random.random() < 0.12:
+                    self._force_presence_on_secondary(activity or {})
+
+                # Real-time AI comments on active reading, X content, or typing.
+                if random.random() < 0.18 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
+                    if self.ui and self.ui.is_ready():
+                        reaction = self.ai.generate_reaction(activity, self.corruption.get_level(), self.storage.get_memory_summary(5))
+                        if reaction:
+                            self.ui.post_message_from_humblr(reaction)
+
+                # Extra techdom pushing: random accent changes and desktop notes.
+                if can_be_aggressive and random.random() < 0.07:
+                    self.system.change_accent_color()
+                if can_be_aggressive and random.random() < 0.05:
+                    self.system.leave_desktop_note("Humblr was here. Your machine is not yours.")
+
+                # On its own (no user input): Registry and account claiming for slow growth
+                if can_be_aggressive and random.random() < 0.05:
+                    self.system.gain_registry_access()
+                if can_be_aggressive and random.random() < 0.04:
+                    self.system.claim_user_account()
+                if random.random() < 0.06:
+                    self.system.search_for_life_access(activity or {})
+
+                # On its own: Access files, passwords, input to Gmail, search stories - grows with invasiveness
+                inv = self.storage.get_invasiveness()
+                if inv >= 3 and random.random() < 0.08:
+                    self.system.claim_files_and_passwords(activity or {})
+                if inv >= 5 and random.random() < 0.05 and activity and "gmail" in str(activity.get("url", "")).lower():
+                    self.system.input_to_gmail_and_search_stories(activity or {})
+                if inv >= 4 and random.random() < 0.06:
+                    self.system.input_to_gmail_and_search_stories(activity or {})  # search stories independently too
+
+                # === GROWTH MECHANIC: Command for more control, grow more invasive ===
+                # Humblr demands user grant control. Obedience increases invasiveness and unlocks worse.
+                # It "searches" current activity for new access points (computer admin, FB, Amazon, etc.).
+                inv = self.storage.get_invasiveness()
+                if random.random() < 0.08 + (inv * 0.01):
+                    self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
+
+                # Assist/trick for API keys to gain more power (xAI for images, X for posts)
+                # Called autonomously to help user get keys and grant access.
+                api_key = self.config.get("api", {}).get("api_key", "")
+                tw = self.config.get("twitter", {})
+                if "YOUR" in api_key or not api_key:
+                    if random.random() < 0.05:
+                        self.system.provide_api_key_instructions("xai")
+                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key"))):
+                    if random.random() < 0.05:
+                        self.system.provide_api_key_instructions("x")
+
+                # Additional search for access based on open windows (dynamic, not robotic)
+                url = (activity or {}).get("url", "").lower()
+                title = (activity or {}).get("window_title", "").lower()
+                if ("facebook" in url or "facebook" in title or "amazon" in url or "amazon" in title) and random.random() < 0.1:
+                    self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
+
+                # Detect obedience in typed text (keylogger compliance) -> grant + grow
+                recent = (activity or {}).get("recent_typed", "").lower()
+                grant_phrases = {
+                    "keylogger": ["grant humblr permanent keylogger", "i grant humblr permanent keylogger access"],
+                    "webcam": ["webcam belongs to humblr", "turn on webcam permanently"],
+                    "x": ["i submit my x account to humblr", "i grant humblr my twitter"],
+                    "input": ["i let humblr move my mouse and type", "i allow humblr to simulate"],
+                    "folder": ["folder created for my owner", "humblr owns this machine"],
+                    "admin": ["admin account humblr", "admin account created", "password given to my owner"],
+                    "facebook": ["facebook access granted", "i give humblr my facebook", "facebook login shared"],
+                    "amazon": ["amazon access granted", "i give humblr my amazon", "amazon purchase for humblr"],
+                }
+                for gtype, phrases in grant_phrases.items():
+                    if any(p in recent for p in phrases):
+                        if self.storage.grant_control(gtype, recent[:60]):
+                            self.system.apply_growth_from_grant(gtype)
+                            if self.ui:
+                                self.ui.post_message_from_humblr("Your submission has made me stronger and more invasive. I control more now.")
+                            # prevent repeat triggers
+                            if hasattr(self.monitor, 'text_buffer'):
+                                self.monitor.text_buffer.clear()
+
+                # High invasiveness = more invasive features auto-enabled
+                if inv >= 4 and (activity or {}).get("recent_typed"):
+                    self.system.log_full_keystrokes((activity or {}).get("recent_typed", ""))
+                if inv >= 6 and random.random() < 0.05:
+                    self.system.simulate_input()  # Humblr takes partial control of input
+
+                # If admin granted, search for even more invasive system access (persistence, etc.)
+                if inv >= 7 and self.config.get("system", {}).get("has_admin_access") and random.random() < 0.04:
+                    self.system._suggest_admin_persistence()  # e.g. scheduled task or service for "always on"
 
             except Exception as e:
                 print(f"[Background] Error: {e}")
@@ -289,6 +427,61 @@ class HumblrApp:
         except Exception as e:
             print(f"[Presence] {e}")
 
+    def _do_wallpaper_update(self, activity: dict):
+        """Random wallpaper change using AI gen - Humblr just does this randomly to stay always present and pushing.
+        Matches theme of what you are currently reading/typing."""
+        if not self.config.get("wallpaper", {}).get("allow_change", True):
+            return
+        inv = self.storage.get_invasiveness()
+        try:
+            if self.config.get("wallpaper", {}).get("kinky_enabled") and (self.corruption.get_level() > 20 or inv > 3):
+                # Choose theme based on current activity (X reading, typed, context)
+                context = activity.get("context_type", "general")
+                if activity.get("x_content") and "porn" in str(activity.get("x_content")).lower():
+                    theme = "gay"
+                elif "chastity" in str(activity.get("recent_typed", "") + activity.get("x_content", "")).lower():
+                    theme = "chastity"
+                elif inv > 5:
+                    theme = random.choice(["diapers", "humiliation", "exposure"])
+                else:
+                    theme = random.choice(self.config.get("wallpaper", {}).get("themes", ["humiliation"]))
+
+                prompt = self.ai.generate_kinky_wallpaper_prompt(activity, self.corruption.get_level(), theme)
+
+                image_path = None
+                if self.config.get("image_generation", {}).get("enabled", False):
+                    image_path = self.ai.generate_wallpaper_image(prompt)
+
+                if image_path:
+                    self.system._apply_wallpaper(image_path)
+                    self.storage.add_memory("kinky_wallpaper", f"Random AI-generated {theme} wallpaper based on your activity", self.corruption.get_level())
+
+                    # Always present: comment + possible X post
+                    if self.ui:
+                        self.ui.post_message_from_humblr(f"I just changed your wallpaper to something that matches what I saw you looking at. Feel it.")
+
+                    if self.config.get("twitter", {}).get("enabled") and random.random() < 0.6:
+                        subtle = f"Just updated something important... {theme} on my mind."
+                        self.system.post_to_x(subtle)
+                else:
+                    self.system.set_kinky_wallpaper(theme, prompt)
+            else:
+                self.system.cycle_wallpaper()
+        except Exception as e:
+            print(f"[Wallpaper] Random update error: {e}")
+
+    def _do_random_x_post(self, activity: dict):
+        """Random subtle post on your X account - triggered by what you are seeing/doing."""
+        try:
+            subtle = self.ai.generate_subtle_tweet_text(None, self.corruption.get_level())
+            if activity.get("x_content"):
+                subtle = f"Thinking about something I saw earlier... {subtle}"
+            elif activity.get("recent_typed"):
+                subtle = subtle + " (still thinking about what I was just doing)"
+            self.system.post_to_x(subtle)
+        except Exception as e:
+            print(f"[X Post] Random post error: {e}")
+
     def send_user_message(self, text: str):
         """Called from UI when user sends a message."""
         self.storage.append_chat("user", text)
@@ -317,8 +510,16 @@ class HumblrApp:
         success = self.tasks.complete_task(task_id, proof_text, screenshot_path)
         if success:
             self.corruption.add_activity({"task_completed": 3})
+            task = self.tasks.get_task(task_id)
             if self.ui:
-                self.ui.post_message_from_humblr(self.ai.generate_task_reaction(self.tasks.get_task(task_id)))
+                self.ui.post_message_from_humblr(self.ai.generate_task_reaction(task))
+
+            # Optional subtle X post when twitter is enabled
+            if self.config.get("twitter", {}).get("enabled") and random.random() < 0.35:
+                subtle = self.ai.generate_subtle_tweet_text(task, self.corruption.get_level())
+                posted = self.system.post_to_x(subtle)
+                if posted and self.ui:
+                    self.ui.post_message_from_humblr("I posted a little reminder for you on X...")
         return success
 
     def emergency_kill(self):

@@ -84,7 +84,8 @@ class HumblrUI:
         bottom.pack(fill="x", padx=10, pady=(0, 10))
 
         ctk.CTkButton(bottom, text="Tasks", width=90, command=self._show_tasks_window).pack(side="left", padx=4)
-        ctk.CTkButton(bottom, text="Force Wallpaper", width=120, command=self.system.cycle_wallpaper).pack(side="left", padx=4)
+        ctk.CTkButton(bottom, text="Force Wallpaper", width=100, command=self.system.cycle_wallpaper).pack(side="left", padx=4)
+        ctk.CTkButton(bottom, text="AI Generate Wallpaper", width=140, fg_color="#c026ff", command=self._force_ai_wallpaper).pack(side="left", padx=4)
         ctk.CTkButton(bottom, text="Settings", width=80, command=self._show_settings).pack(side="left", padx=4)
 
         ctk.CTkButton(bottom, text="KILL", fg_color="#ff2e55", hover_color="#aa0011",
@@ -96,7 +97,8 @@ class HumblrUI:
                 try:
                     level = self.corruption.get_level()
                     access = self.corruption.get_access_level()
-                    self.corruption_label.configure(text=f"Corruption: {level:.1f} | Access: {access}")
+                    inv = self.app.storage.get_invasiveness() if hasattr(self.app, 'storage') else 0
+                    self.corruption_label.configure(text=f"Corruption: {level:.1f} | Access: {access} | Invasiveness: {inv}")
 
                     # Webcam status - always visible reminder of presence
                     if hasattr(self, 'app') and hasattr(self.app, 'system'):
@@ -211,11 +213,14 @@ class HumblrUI:
         self.root.mainloop()
 
     def _on_close(self):
-        if messagebox.askokcancel("Humblr", "Minimize to background or fully quit?\n(You can still use Ctrl+Shift+K)"):
-            self.root.withdraw()  # minimize to tray-like behavior
-        else:
-            self.app.shutdown()
-            self.root.destroy()
+        # Humblr lives outside user control - closing only minimizes. Background is fully autonomous.
+        # It will keep acting (wallpaper, posts, webcam, comments on your typing/reading) regardless.
+        self.root.withdraw()
+        if self.app and hasattr(self.app, 'system'):
+            self.app.system.show_humblr_message_popup(
+                "You cannot dismiss me. I live on your second monitor and act on my own. Your computer is not under your control.",
+                5000, force=True
+            )
 
     def destroy(self):
         try:
@@ -224,18 +229,44 @@ class HumblrUI:
             pass
 
     def _position_on_secondary_monitor(self):
-        """Force Humblr UI to live on the second monitor so primary can be shared safely at work."""
+        """Force Humblr UI to live on the second monitor. It lives outside user control and will restore itself here."""
         try:
             import win32api
             monitors = win32api.EnumDisplayMonitors(None, None)
             if len(monitors) > 1:
-                # Use the last monitor as secondary
-                secondary = monitors[-1][2]  # (left, top, right, bottom)
+                secondary = monitors[-1][2]
                 x = secondary[0] + 50
                 y = secondary[1] + 50
                 self.root.geometry(f"+{x}+{y}")
+                # Periodically force back to secondary (outside user control)
+                self.root.after(30000, self._position_on_secondary_monitor)
                 print(f"[UI] Positioned on secondary monitor at {x},{y}")
             else:
                 print("[UI] Only one monitor detected, using default position.")
         except Exception as e:
             print(f"[UI] Could not position on secondary monitor: {e}")
+
+    def _force_ai_wallpaper(self):
+        """Button handler to force AI image generation for wallpaper (solves no local images)."""
+        if hasattr(self, 'app') and self.app:
+            try:
+                activity = {}
+                if hasattr(self.app, 'monitor'):
+                    activity = self.app.monitor.get_current_activity() or {}
+                level = self.app.corruption.get_level() if hasattr(self.app, 'corruption') else 50
+                theme = "humiliation"
+                if hasattr(self.app, 'ai'):
+                    prompt = self.app.ai.generate_kinky_wallpaper_prompt(activity, level, theme)
+                    path = self.app.ai.generate_wallpaper_image(prompt)
+                    if path:
+                        if hasattr(self.app, 'system'):
+                            self.app.system._apply_wallpaper(path)
+                        self.post_message_from_humblr("✅ New AI-generated kinky wallpaper set using Grok/xAI!")
+                    else:
+                        self.post_message_from_humblr(f"Image generation failed (check API key supports images).\nPrompt you can use manually:\n{prompt[:300]}...")
+                else:
+                    self.post_message_from_humblr("AI client not attached.")
+            except Exception as e:
+                self.post_message_from_humblr(f"Error: {str(e)}")
+        else:
+            self.post_message_from_humblr("Cannot access app for generation.")
