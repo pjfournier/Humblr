@@ -88,7 +88,13 @@ class BrowserController:
             import playwright
             return True
         except ImportError:
+            frozen = bool(getattr(sys, 'frozen', False))
             print("[Humblr Browser] Playwright not installed. Attempting auto-install...")
+            if frozen:
+                print("[Humblr Browser] Running as .exe - cannot pip from inside onefile easily.")
+                print("              For full browser takeover: On this machine run once in a terminal with Python:")
+                print("              pip install playwright && playwright install chromium")
+                return False
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"], timeout=180)
                 print("[Humblr Browser] Package installed. Installing Chromium...")

@@ -1,6 +1,14 @@
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict
+
+try:
+    from .paths import resolve_config_path, get_app_dir, is_frozen
+except Exception:
+    resolve_config_path = None
+    get_app_dir = None
+    is_frozen = lambda: bool(getattr(sys, 'frozen', False) and getattr(sys, '_MEIPASS', None))
 
 DEFAULT_CONFIG = {
     "character_name": "Humblr",
@@ -124,7 +132,16 @@ DEFAULT_CONFIG = {
 
 
 def load_config(path: str = "config.json") -> Dict[str, Any]:
-    config_path = Path(path)
+    # Resolve best config location (next to exe when frozen, cwd, or bundle)
+    if resolve_config_path is not None:
+        try:
+            resolved = resolve_config_path(path)
+        except Exception:
+            resolved = Path(path)
+    else:
+        resolved = Path(path)
+
+    config_path = resolved
     config = DEFAULT_CONFIG.copy()
 
     if config_path.exists():
@@ -138,18 +155,21 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
                 else:
                     config[key] = value
         except Exception as e:
-            print(f"[Config] Failed to load {path}: {e}. Using defaults.")
+            print(f"[Config] Failed to load {config_path}: {e}. Using defaults.")
             print("  Hint: Check for lowercase true/false (use True/False in Python code) or invalid JSON syntax. Rewriting clean config.")
             try:
-                with open(path, "w", encoding="utf-8") as f:
+                with open(str(config_path), "w", encoding="utf-8") as f:
                     json.dump(DEFAULT_CONFIG, f, indent=2)
-                print(f"  Wrote clean {path}. Restart the app.")
+                print(f"  Wrote clean {config_path}. Restart the app.")
             except Exception as write_err:
                 print(f"  Could not auto-write clean config: {write_err}")
     else:
-        print(f"[Config] {path} not found. Using defaults + example if present.")
-        # Try to copy example if exists
-        example = Path("config.json.example")
+        print(f"[Config] {config_path} not found. Using defaults + example if present.")
+        # Try app dir first (portable), then CWD, then bundled example
+        app_dir = get_app_dir() if get_app_dir else Path.cwd()
+        example = app_dir / "config.json.example"
+        if not example.exists():
+            example = Path("config.json.example")
         if example.exists():
             try:
                 with open(example, "r", encoding="utf-8") as f:

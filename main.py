@@ -12,8 +12,12 @@ import traceback
 import random
 from pathlib import Path
 
-# Ensure we can import local package
-sys.path.insert(0, str(Path(__file__).parent))
+# Ensure we can import local package (dev + frozen safe)
+if getattr(sys, 'frozen', False):
+    # PyInstaller onefile/onedir: package is inside the bundle
+    sys.path.insert(0, str(Path(sys._MEIPASS)))
+else:
+    sys.path.insert(0, str(Path(__file__).parent))
 
 import customtkinter as ctk
 
@@ -26,6 +30,10 @@ from humblr.tasks import TaskManager
 from humblr.system_actions import SystemActions
 from humblr.hotkeys import register_killswitch
 from humblr.ui import HumblrUI
+from humblr.paths import (
+    get_data_dir, get_app_dir, get_logs_dir, resolve_config_path,
+    ensure_runtime_dirs, is_frozen
+)
 
 try:
     import pystray
@@ -36,22 +44,33 @@ except ImportError:
 
 
 APP_NAME = "Humblr"
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
 
 
 def ensure_folders():
-    (DATA_DIR / "wallpapers").mkdir(exist_ok=True)
-    (DATA_DIR / "screenshots").mkdir(exist_ok=True)
-    logs = Path("logs")
-    logs.mkdir(exist_ok=True)
+    """Create all runtime dirs next to the exe (or in dev tree). Safe for frozen onefile."""
+    ensure_runtime_dirs()  # does data/* + logs next to exe
+    # Also make sure a copy of skeleton from bundle if first run (portable)
+    try:
+        from humblr.paths import get_bundled_data_dir
+        bundled = get_bundled_data_dir()
+        target = get_data_dir()
+        if bundled and bundled.exists():
+            # Only seed empty subdirs that don't exist yet (don't overwrite user content)
+            for sub in ["wallpapers", "wallpapers/generated", "wallpapers/kinky", "screenshots", "webcam"]:
+                src = bundled / sub
+                dst = target / sub
+                if src.exists() and not any(dst.glob("*")):
+                    dst.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 
 class HumblrApp:
     def __init__(self):
         ensure_folders()
 
-        self.config = load_config()
+        cfg_path = resolve_config_path()
+        self.config = load_config(str(cfg_path))
         self.storage = Storage(self.config)
 
         self.ai = AIClient(self.config)

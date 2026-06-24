@@ -1,17 +1,28 @@
 import json
 import time
 import random
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
+
+try:
+    from .paths import resolve_relative, get_data_dir, get_app_dir
+except Exception:
+    resolve_relative = lambda p: Path(p)
+    get_data_dir = lambda: Path("data")
+    get_app_dir = lambda: Path(".")
 
 
 class Storage:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.state_path = Path(config["data_paths"]["state_file"])
-        self.chat_path = Path(config["data_paths"]["chat_history"])
-        self.task_path = Path(config["data_paths"]["task_log"])
-        self.memory_path = Path(config.get("data_paths", {}).get("memory_log", "data/memory_log.json"))
+        # Resolve data paths against the portable app dir (next to exe when frozen)
+        dp = config.get("data_paths", {})
+        self.state_path = resolve_relative(dp.get("state_file", "data/humblr_state.json"))
+        self.chat_path = resolve_relative(dp.get("chat_history", "data/chat_history.json"))
+        self.task_path = resolve_relative(dp.get("task_log", "data/task_log.json"))
+        mem_default = dp.get("memory_log", str(get_data_dir() / "memory_log.json"))
+        self.memory_path = resolve_relative(mem_default)
 
         self.state: Dict[str, Any] = {}
         self.chat_history: List[Dict] = []

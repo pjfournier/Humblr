@@ -5,11 +5,18 @@ Windows focused.
 
 import time
 import threading
+import sys
 from typing import Dict, Optional, Any
 from collections import deque
+from pathlib import Path
 
 import psutil
 import time
+
+try:
+    from .paths import resolve_relative
+except Exception:
+    resolve_relative = lambda p: Path(p)
 
 try:
     from contextlib import nullcontext
@@ -485,7 +492,8 @@ class ActivityMonitor:
         if pyautogui is None:
             return None
         try:
-            screenshots_dir = Path(self.config.get("data_paths", {}).get("screenshots", "data/screenshots"))
+            sd = self.config.get("data_paths", {}).get("screenshots", "data/screenshots")
+            screenshots_dir = resolve_relative(sd)
             screenshots_dir.mkdir(parents=True, exist_ok=True)
             timestamp = int(time.time())
             path = screenshots_dir / f"screenshot_{context}_{timestamp}.png"
