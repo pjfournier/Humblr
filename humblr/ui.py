@@ -48,13 +48,7 @@ class HumblrUI:
         self.ui_queue = queue.Queue()
         # Start the queue processor on the main thread
         if self.root:
-            self.root.after(100, self._process_ui_queue)
-
-        # Thread-safe queue for UI messages (posts from background threads)
-        self.ui_queue = queue.Queue()
-        # Start the queue processor on the main thread
-        if self.root:
-            self.root.after(100, self._process_ui_queue)
+            self.root.after(120, self._process_ui_queue)
 
     def _build_ui(self):
         accent = self.config["ui"]["accent_color"]
@@ -67,7 +61,7 @@ class HumblrUI:
         self.title_label = ctk.CTkLabel(top, text="Humblr", font=("Segoe UI", 22, "bold"), text_color=accent)
         self.title_label.pack(side="left", padx=10)
 
-        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0% | barely watching | Invasiveness: 0", font=("Segoe UI", 14), text_color=secondary)
+        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0% | barely watching | Invasiveness: 0", font=("Segoe UI", 14, "bold"), text_color=secondary)
         self.corruption_label.pack(side="right", padx=12)
 
         self.webcam_label = ctk.CTkLabel(top, text="Webcam: OFF", font=("Segoe UI", 12), text_color="#ff2e88")
@@ -114,26 +108,40 @@ class HumblrUI:
         def updater():
             while True:
                 try:
-                    level = self.corruption.get_level()
-                    access = self.corruption.get_access_level()
-                    desc = self.corruption.get_access_description()
-                    inv = self.app.storage.get_invasiveness() if hasattr(self.app, 'storage') else 0
+                    if not getattr(self, '_ready', False) or not self.root:
+                        break
+                    level = 0.0
+                    desc = "watching"
+                    inv = 0
+                    try:
+                        level = float(self.corruption.get_level()) if hasattr(self, 'corruption') else 0.0
+                        desc = self.corruption.get_access_description() if hasattr(self, 'corruption') else "watching"
+                        inv = self.app.storage.get_invasiveness() if hasattr(self.app, 'storage') else 0
+                    except:
+                        pass
+                    # Always clear and prominent
                     self.corruption_label.configure(text=f"Corruption: {level:.1f}% | {desc} | Invasiveness: {inv}")
 
                     # Webcam status - always visible reminder of presence
-                    if hasattr(self, 'app') and hasattr(self.app, 'system'):
-                        wc_on = self.app.system.get_webcam_status()
-                        wc_text = "Webcam: ON (I see you)" if wc_on else "Webcam: OFF"
-                        wc_color = "#ff2e88" if wc_on else "#888888"
-                        self.webcam_label.configure(text=wc_text, text_color=wc_color)
+                    try:
+                        if hasattr(self, 'app') and hasattr(self.app, 'system'):
+                            wc_on = self.app.system.get_webcam_status()
+                            wc_text = "Webcam: ON (I see you)" if wc_on else "Webcam: OFF"
+                            wc_color = "#ff2e88" if wc_on else "#888888"
+                            self.webcam_label.configure(text=wc_text, text_color=wc_color)
+                    except:
+                        pass
 
-                    activity = self.monitor.get_current_activity_summary()
-                    self.status_bar.configure(text=activity[:85] + "..." if len(activity) > 85 else activity)
+                    try:
+                        activity = self.monitor.get_current_activity_summary()
+                        self.status_bar.configure(text=activity[:80] + "..." if len(activity) > 80 else activity)
+                    except:
+                        pass
 
                     self.root.update_idletasks()
                 except Exception:
                     pass
-                time.sleep(1.8)
+                time.sleep(2.0)
 
         t = threading.Thread(target=updater, daemon=True)
         t.start()
@@ -148,6 +156,36 @@ class HumblrUI:
                 print(f"[UI] Humblr: {text[:80]}...")
         else:
             print(f"[UI] Humblr: {text[:80]}...")
+
+    def update_corruption_display(self, level: float = None):
+        """Thread-safe way to force corruption % update with clear feedback."""
+        try:
+            if level is None and hasattr(self, 'corruption'):
+                level = self.corruption.get_level()
+            inv = 0
+            try:
+                inv = self.app.storage.get_invasiveness() if hasattr(self.app, 'storage') else 0
+            except:
+                pass
+            desc = "watching"
+            try:
+                desc = self.corruption.get_access_description() if hasattr(self, 'corruption') else "watching"
+            except:
+                pass
+
+            text = f"Corruption: {level:.1f}% | {desc} | Invasiveness: {inv}"
+            # Use queue or direct if on main
+            if self.root and getattr(self, '_ready', False):
+                try:
+                    self.ui_queue.put_nowait( ("__STATUS__", text) )
+                except:
+                    if self.corruption_label:
+                        self.corruption_label.configure(text=text)
+            else:
+                if self.corruption_label:
+                    self.corruption_label.configure(text=text)
+        except Exception:
+            pass
 
     def _append_chat(self, speaker: str, text: str, is_humblr: bool = False):
         try:
@@ -176,8 +214,15 @@ class HumblrUI:
                     item = self.ui_queue.get_nowait()
                     if isinstance(item, tuple) and len(item) >= 2:
                         speaker, text = item[0], item[1]
-                        is_humblr = (speaker == "Humblr")
-                        self._append_chat(speaker, text, is_humblr=is_humblr)
+                        if speaker == "__STATUS__":
+                            try:
+                                if self.corruption_label:
+                                    self.corruption_label.configure(text=text)
+                            except:
+                                pass
+                        else:
+                            is_humblr = (speaker == "Humblr")
+                            self._append_chat(speaker, text, is_humblr=is_humblr)
                 except queue.Empty:
                     break
                 except Exception as e:
@@ -315,15 +360,15 @@ class HumblrUI:
         try:
             if hasattr(self, 'avatar') and self.avatar:
                 try:
-                    if self.avatar.winfo_exists():
+                    if self.avatar and self.avatar.winfo_exists():
                         self.avatar.destroy()
-                except (tk.TclError, AttributeError):
-                    pass  # widget already destroyed or invalid command
-            if self.root:
+                except (tk.TclError, AttributeError, Exception):
+                    pass
+            if hasattr(self, 'root') and self.root:
                 try:
-                    if self.root.winfo_exists():
+                    if self.root and self.root.winfo_exists():
                         self.root.destroy()
-                except (tk.TclError, AttributeError):
+                except (tk.TclError, AttributeError, Exception):
                     pass
         except Exception:
             pass

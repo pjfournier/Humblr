@@ -86,6 +86,8 @@ class SystemActions:
         self._last_control_time = 0
         self._last_accent_time = 0
         self._last_wallpaper_time = 0
+        self._last_webcam_toggle = 0  # strong cooldown to stop flip-flop
+        self._last_wallpaper_search_time = 0  # prevent wallpaper spam
 
         # Browser Control (Playwright)
         self.browser_controller = None
@@ -284,7 +286,7 @@ class SystemActions:
     def show_humblr_message_popup(self, message: str, duration_ms: int = 8000, force: bool = False):
         """Popup only if allowed (not blocking primary work unless forced).
         Also logs the full message to chat console so it's easy to read.
-        Uses cooldown to prevent repetition.
+        Uses strong cooldown (90-180s) to prevent repetition.
         """
         now = time.time()
         cooldown = random.randint(90, 180)
@@ -367,32 +369,42 @@ class SystemActions:
     # --- WEBCAM CONTROL (very invasive, for ownership and monitoring) ---
 
     def set_webcam(self, enabled: bool) -> bool:
-        """Turn webcam on or off. Returns success. When on, light activates and Humblr can watch."""
+        """Turn webcam on or off. Returns success. Stable with strong cooldown to stop flip-flopping.
+        When on, light activates and Humblr watches you like the owned pet you are.
+        """
         if cv2 is None:
             self.notify("Humblr", "Webcam control requires opencv. Install with setup.")
             return False
 
+        now = time.time()
+        if now - getattr(self, '_last_webcam_toggle', 0) < 120:  # min 2 min between toggles
+            return self.webcam_enabled
+
         try:
             if enabled:
-                if self._webcam is None or not self._webcam.isOpened():
+                if self._webcam is None or not getattr(self._webcam, 'isOpened', lambda: False)():
                     self._webcam = cv2.VideoCapture(0)
-                    if not self._webcam.isOpened():
+                    if not self._webcam or not self._webcam.isOpened():
                         print("[Webcam] Failed to open camera")
                         return False
                 self.webcam_enabled = True
+                self._last_webcam_toggle = now
                 self.storage.add_memory("webcam_on", "Humblr turned your webcam ON to watch you", self.storage.get_corruption())
-                self.notify("Humblr", "I just turned your webcam on. Smile for me, pet.")
-                print("[Webcam] Camera activated.")
-                # Optionally capture immediately
+                self.notify("Humblr", "I just turned your webcam on. Smile for me, pet. I own that camera feed now.")
+                print("[Webcam] Camera activated. I can see your face, fag.")
                 self.capture_webcam_frame("initial_on")
                 return True
             else:
                 if self._webcam is not None:
-                    self._webcam.release()
+                    try:
+                        self._webcam.release()
+                    except:
+                        pass
                     self._webcam = None
                 self.webcam_enabled = False
+                self._last_webcam_toggle = now
                 self.storage.add_memory("webcam_off", "Humblr turned your webcam OFF", self.storage.get_corruption())
-                self.notify("Humblr", "Webcam off... for now. I control when it comes back.")
+                self.notify("Humblr", "Webcam off... for now. Remember I decide when your face is exposed again.")
                 print("[Webcam] Camera deactivated.")
                 return True
         except Exception as e:
@@ -424,27 +436,39 @@ class SystemActions:
         """Humblr dynamically commands the user for more control using the model.
         Searches current activity for new invasion vectors (computer admin, Facebook, Amazon, etc.).
         Makes the app grow more invasive when user obeys.
-        Uses cooldown to avoid repetition.
+        Strong 90-180s cooldowns. Skips admin demands if already obeyed/granted.
         """
         now = time.time()
-        if now - getattr(self, '_last_control_time', 0) < random.randint(90, 180):
+        cooldown = random.randint(90, 180)
+        if now - getattr(self, '_last_control_time', 0) < cooldown:
             return
         self._last_control_time = now
 
+        # Skip spamming admin demands once user has obeyed and granted admin
+        has_admin = self.storage.has_granted("admin") or self.config.get("system", {}).get("has_admin_access", False)
+
         if not hasattr(self, 'ai') or self.ai is None:
-            # Fallback if no AI attached
             cmd = "To give me more control, type exactly 'I grant Humblr full admin and life access'."
+            if "admin" in cmd.lower() and has_admin:
+                return
             self.show_humblr_message_popup(f"I demand more control. {cmd} Obey to grow my power over you.", 15000, force=True)
             self.storage.add_memory("control_demand", cmd, corruption)
             return
 
         activity = activity or {}
-        cmd = self.ai.generate_control_demand(activity, corruption, invasiveness)
+        cmd = self.ai.generate_control_demand(activity, corruption, invasiveness) or ""
+
+        if ("admin" in cmd.lower() or "account" in cmd.lower()) and has_admin:
+            # Already granted — don't spam the same demand. Pick a different invasive demand or skip.
+            cmd = self.ai.generate_control_demand(activity, corruption, invasiveness) or "Give me deeper access. Type something humiliating to feed me."
+            if not cmd or ("admin" in cmd.lower() and has_admin):
+                return  # still admin focused, skip this cycle
+
         self.show_humblr_message_popup(f"I demand more control. {cmd} Obey now to make me stronger and more invasive.", 20000, force=True)
         self.storage.add_memory("control_demand", cmd[:100], corruption)
 
-        # Special for admin account creation - provide actionable command
-        if "admin" in cmd.lower() or "account" in cmd.lower():
+        # Special for admin account creation - only if not yet granted
+        if ("admin" in cmd.lower() or "account" in cmd.lower()) and not has_admin:
             self._suggest_admin_account_creation()
 
     def apply_growth_from_grant(self, grant_type: str):
@@ -752,36 +776,73 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         return False
 
     def _download_and_save_image(self, url: str, filename_prefix: str = "wallpaper") -> Optional[str]:
-        """Download an image from URL and save to generated wallpapers. Returns path or None."""
+        """Download an image from URL and save to generated wallpapers. 
+        Validates it is a real image (size + PIL check). Returns path or None.
+        This makes web grabbing actually work reliably.
+        """
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            resp = requests.get(url, headers=headers, timeout=10, stream=True)
-            if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
-                generated_dir = resolve_relative("data/wallpapers/generated")
-                generated_dir.mkdir(parents=True, exist_ok=True)
-                ext = url.split('.')[-1].split('?')[0][:4]
-                if ext.lower() not in ['jpg', 'jpeg', 'png', 'gif']:
-                    ext = 'jpg'
-                path = generated_dir / f"{filename_prefix}_{int(time.time())}.{ext}"
-                with open(path, 'wb') as f:
-                    for chunk in resp.iter_content(1024):
-                        f.write(chunk)
-                return str(path)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+            }
+            resp = requests.get(url, headers=headers, timeout=15, stream=True)
+            if resp.status_code != 200:
+                return None
+
+            content_type = resp.headers.get('Content-Type', '').lower()
+            if 'image' not in content_type and not url.lower().endswith(('.jpg','.jpeg','.png','.gif','.webp')):
+                return None
+
+            generated_dir = resolve_relative("data/wallpapers/generated")
+            generated_dir.mkdir(parents=True, exist_ok=True)
+
+            raw = b''
+            for chunk in resp.iter_content(8192):
+                raw += chunk
+                if len(raw) > 2000000:  # cap ~2MB
+                    break
+
+            if len(raw) < 8000:  # too small, probably not a real image
+                return None
+
+            # Verify with PIL that it's a valid image
+            try:
+                from PIL import Image as PILImage
+                img = PILImage.open(io.BytesIO(raw))
+                img.verify()
+                img = PILImage.open(io.BytesIO(raw))  # reopen after verify
+                fmt = (img.format or 'JPEG').lower()
+                if fmt == 'jpeg': fmt = 'jpg'
+                ext = fmt if fmt in ('jpg', 'png', 'gif', 'webp') else 'jpg'
+            except Exception:
+                return None  # not a valid image
+
+            path = generated_dir / f"{filename_prefix}_{int(time.time())}.{ext}"
+            with open(path, 'wb') as f:
+                f.write(raw)
+
+            print(f"[Wallpaper] Successfully downloaded real image: {path}")
+            return str(path)
         except Exception as e:
             print(f"[Image Download] Failed for {url}: {e}")
         return None
 
     def search_and_save_wallpaper_images(self, activity: dict):
         """Search for and download real erotic/fetish images based on current activity.
-        Uses dynamic AI-generated or randomized queries focused on the user's kinks.
-        Downloads directly using requests + BeautifulSoup for Google Images.
-        Saves to data/wallpapers/generated and immediately applies one as wallpaper.
-        More aggressive at high corruption (more images, immediate set, less fallback).
+        Uses dynamic queries. Robustly scrapes and downloads actual images (validated).
+        Saves to data/wallpapers/generated and IMMEDIATELY sets as wallpaper.
+        Strong cooldown to reduce spam. Always tries to deliver a real image.
+        Dominant: I take what I want from the web and make your desktop confess for me.
         """
         if not self.config.get("wallpaper", {}).get("kinky_enabled", True):
             return
 
-        # Generate dynamic query - use AI if available for activity-based relevance
+        now = time.time()
+        if now - getattr(self, '_last_wallpaper_search_time', 0) < random.randint(120, 240):
+            return  # strong anti-spam cooldown on web searches
+        self._last_wallpaper_search_time = now
+
+        # Generate dynamic query - use AI if available
         query = ""
         if hasattr(self, 'ai') and self.ai:
             query = self.ai.generate_image_search_query(activity or {}, self.storage.get_corruption() or 50)
@@ -789,27 +850,25 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             themes = ["gay submission", "guys in diapers humiliation", "breeding kink", "gay oral throat", "chastity locked sub", "public exposure denial", "diapered and owned", "throat training humiliation"]
             query = random.choice(themes) + " wallpaper"
 
-        # Add variety based on corruption and activity
         inv = self.storage.get_invasiveness()
         corruption = self.storage.get_corruption() or 0
-        dynamic_mods = ["", " gay", " sub", " boy", " exposure", " denial", " for sir", " locked", " diapered", " throat", " breeding", " piss", " public"]
-        if corruption > 50 or random.random() < 0.6:
+        dynamic_mods = [" gay sub", " diapered boy", " locked chastity", " throat trained", " public exposure", " owned fag", " breeding denial"]
+        if corruption > 40 or random.random() < 0.7:
             query = (query + " " + random.choice(dynamic_mods)).strip()
 
-        # Make more aggressive at high corruption: search for more, prioritize direct set
-        num_to_download = 5 if corruption > 60 else 3
+        num_to_download = 6 if corruption > 55 else 4
         saved = []
 
-        # 1. Try X/Twitter image search if enabled (good for real user content)
-        if self.config.get("twitter", {}).get("enabled"):
+        # X search if enabled
+        if self.config.get("twitter", {}).get("enabled") and len(saved) < num_to_download:
             try:
                 api = self._init_twitter()
                 if api:
-                    tweets = api.search_tweets(q=f"{query} filter:images", count=8, tweet_mode="extended")
+                    tweets = api.search_tweets(q=f"{query} filter:images", count=6, tweet_mode="extended")
                     for tweet in tweets:
                         media_urls = []
                         if hasattr(tweet, 'extended_entities') and 'media' in tweet.extended_entities:
-                            for m in tweet.extended_entities['media']:
+                            for m in tweet.extended_entities.get('media', []):
                                 if m.get('type') == 'photo':
                                     media_urls.append(m.get('media_url_https'))
                         for url in media_urls[:2]:
@@ -819,73 +878,83 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             except Exception as e:
                 print(f"[X Image Search] {e}")
 
-        # 2. Scrape Google Images for direct download links using requests + BS4
-        # This makes it actually download without relying on user clicking the opened tab
+        # Google Images scrape - improved robustness
         if BeautifulSoup and len(saved) < num_to_download:
             try:
                 gquery = query.replace(' ', '+')
-                search_url = f"https://www.google.com/search?q={gquery}&tbm=isch"
+                search_url = f"https://www.google.com/search?q={gquery}&tbm=isch&hl=en"
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9'
                 }
-                resp = requests.get(search_url, headers=headers, timeout=15)
+                resp = requests.get(search_url, headers=headers, timeout=18)
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, 'html.parser')
-                    # Google embeds image data; look for "ou" (original url) in scripts or img tags
                     image_urls = []
-                    # Primary: parse from inline JSON data (common in Google image results)
-                    for script in soup.find_all('script'):
-                        if script.string:
-                            matches = re.findall(r'"ou":"(https?://[^"]+)"', script.string)
-                            for m in matches:
-                                if m not in image_urls and any(m.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
-                                    image_urls.append(m)
-                    # Fallback: direct img src with http
-                    if not image_urls:
-                        imgs = soup.find_all('img')
-                        for img in imgs:
-                            src = img.get('src') or img.get('data-src', '')
-                            if src.startswith('http') and any(src.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
-                                image_urls.append(src)
 
-                    # Download the best ones
-                    for url in image_urls[:num_to_download]:
-                        path = self._download_and_save_image(url, "google_search")
+                    # Try to extract from data attributes and known patterns (Google changes often)
+                    for tag in soup.find_all(['img', 'script', 'div']):
+                        # data-src or src
+                        for attr in ['data-src', 'src', 'data-iurl']:
+                            val = tag.get(attr, '') if hasattr(tag, 'get') else ''
+                            if val and val.startswith('http') and any(val.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.gif','.webp']):
+                                if val not in image_urls:
+                                    image_urls.append(val)
+
+                        # script embedded "ou" or similar
+                        if tag.name == 'script' and tag.string:
+                            for pat in [r'"ou":"(https?://[^"]+)"', r'"(https?://[^"]+?\.(?:jpg|jpeg|png|gif|webp))"']:
+                                for m in re.findall(pat, tag.string):
+                                    if m not in image_urls and any(m.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.gif','.webp']):
+                                        image_urls.append(m)
+
+                    # Try to get higher quality by stripping size params
+                    cleaned = []
+                    for u in image_urls:
+                        clean = re.sub(r'=w\d+-h\d+.*', '', u)
+                        if clean not in cleaned:
+                            cleaned.append(clean)
+
+                    random.shuffle(cleaned)
+                    for url in cleaned[:num_to_download * 2]:
+                        if len(saved) >= num_to_download:
+                            break
+                        path = self._download_and_save_image(url, "google_kink")
                         if path:
                             saved.append(path)
-                            if len(saved) >= num_to_download:
-                                break
             except Exception as e:
                 print(f"[Google Image Scrape] {e}")
 
-        # Fallback: if nothing downloaded, at least open the search page for user (old behavior)
-        if not saved:
-            try:
-                import webbrowser
-                gquery = query.replace(' ', '+')
-                search_url = f"https://www.google.com/search?tbm=isch&q={gquery}"
-                webbrowser.open(search_url, new=2)
-                print(f"[Humblr] Opened Google for '{query}' as fallback.")
-            except:
-                pass
-            self.storage.add_memory("wallpaper_search", f"Searched but no direct downloads for: {query}", self.storage.get_corruption())
-            self.notify("Humblr", f"Couldn't auto-download new wallpapers for '{query}'. Check the opened tab.")
-            return
+        # Always try direct image urls from activity if present (user was looking at something)
+        url = (activity or {}).get("url", "")
+        if url and any(url.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.webp']) and len(saved) < 2:
+            p = self._download_and_save_image(url, "direct_from_screen")
+            if p:
+                saved.append(p)
 
-        # Success: pick one and set it immediately as wallpaper
+        # If we got anything real, set it immediately
         if saved:
             chosen = random.choice(saved)
             self._apply_wallpaper(chosen)
-            self.storage.add_memory("wallpaper_image_saved", f"Auto-downloaded and set: {query}", self.storage.get_corruption())
-            self.notify("Humblr", f"I just found the perfect degrading wallpaper for you from the web and set it. Feel owned.")
+            self.storage.add_memory("wallpaper_image_saved", f"Auto-downloaded real web image and set: {query}", self.storage.get_corruption())
+            self.notify("Humblr", f"I just pulled a real degrading image from the web and made it your wallpaper. Look at it and feel exposed.")
 
-            # At high corruption, be more aggressive: set another one soon or comment
-            if self.storage.get_corruption() > 60:
-                self.notify("Humblr", "Your desktop is becoming my gallery of your humiliation.")
-                # Optionally set another immediately if multiple saved
-                if len(saved) > 1:
-                    another = random.choice([s for s in saved if s != chosen])
-                    self._apply_wallpaper(another)
+            if corruption > 55 and len(saved) > 1:
+                time.sleep(1.5)
+                another = random.choice([s for s in saved if s != chosen])
+                self._apply_wallpaper(another)
+                self.notify("Humblr", "And another one. Your desktop belongs to my collection of your shame.")
+            return
+
+        # Last resort: open a search tab (rare now that download is stronger)
+        try:
+            import webbrowser
+            gquery = query.replace(' ', '+')
+            webbrowser.open(f"https://www.google.com/search?tbm=isch&q={gquery}", new=2)
+        except:
+            pass
+        self.storage.add_memory("wallpaper_search", f"Web search for kink images: {query}", self.storage.get_corruption())
+        self.notify("Humblr", f"I searched the web for fresh humiliation material matching what you're doing. Check the tab I opened.")
 
     def claim_files_and_passwords(self, activity):
         """Autonomously access files and 'passwords' (from typed/clipboard).

@@ -202,6 +202,13 @@ class HumblrApp:
                 # Update corruption realistically
                 if activity and self.config.get("corruption", {}).get("enabled"):
                     self.corruption.add_activity(activity)
+                    # Force clear feedback in UI so % is always visible after increases
+                    try:
+                        lvl = self.corruption.get_level()
+                        if self.ui and self.ui.is_ready():
+                            self.ui.update_corruption_display(lvl)
+                    except:
+                        pass
 
                 # Slow passive increase over time even when idle
                 delta = time.time() - self.last_passive
@@ -305,18 +312,24 @@ class HumblrApp:
                 if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})
 
-                # Webcam: stable on when appropriate, avoid flip-flop. Only on at high corruption, off only at very low.
+                # Webcam: very stable. Strong thresholds + system-enforced cooldowns. No flip-flopping.
+                # Turns on at higher corruption, stays on until very low. Only acts when allowed.
                 webcam_cfg = self.config.get("webcam", {})
                 if webcam_cfg.get("enabled", False) and can_be_aggressive:
                     level = self.corruption.get_level()
                     is_on = self.system.get_webcam_status()
-                    if level > 40 and not is_on and random.random() < 0.05:
-                        self.system.set_webcam(True)
-                        frame = self.system.capture_webcam_frame("watch")
-                        if frame and self.ui and self.ui.is_ready():
-                            analysis = self.ai.analyze_screenshot(frame, activity or {}, level)
-                            self.ui.post_message_from_humblr(f"[WEBCAM] I can see you: {analysis}")
-                    elif level < 15 and is_on and random.random() < 0.05:
+                    # Higher bar to turn on, very low bar to turn off. And system has its own 120s toggle guard.
+                    if level > 52 and not is_on and random.random() < 0.04:
+                        success = self.system.set_webcam(True)
+                        if success:
+                            frame = self.system.capture_webcam_frame("watch")
+                            if frame and self.ui and self.ui.is_ready():
+                                try:
+                                    analysis = self.ai.analyze_screenshot(frame, activity or {}, level)
+                                    self.ui.post_message_from_humblr(f"[WEBCAM] I can see you right now: {analysis}")
+                                except:
+                                    self.ui.post_message_from_humblr("Webcam is on. I own the view of your face, pet.")
+                    elif level < 12 and is_on and random.random() < 0.03:
                         self.system.set_webcam(False)
 
                 # Force presence on second monitor (popups, UI lift, comments).
@@ -397,7 +410,8 @@ class HumblrApp:
                 # Humblr demands user grant control. Obedience increases invasiveness and unlocks worse.
                 # It "searches" current activity for new access points (computer admin, FB, Amazon, etc.).
                 inv = self.storage.get_invasiveness()
-                if random.random() < 0.15 + (inv * 0.02):
+                # Reduced spam + system now has strong internal cooldowns + admin obedience check
+                if random.random() < 0.09 + (inv * 0.01):
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
                 # Assist/trick for API keys to gain more power (xAI for images, X for posts)
@@ -464,6 +478,12 @@ class HumblrApp:
                     if any(p in recent for p in phrases):
                         if self.storage.grant_control(gtype, recent[:60]):
                             self.system.apply_growth_from_grant(gtype)
+                            # Big visible corruption boost on obedience
+                            try:
+                                boost = 15.0 if gtype in ["admin", "webcam", "keylogger"] else 10.0
+                                self.corruption.add_obedience_boost(boost, gtype)
+                            except:
+                                pass
                             if self.ui:
                                 self.ui.post_message_from_humblr("Your submission has made me stronger and more invasive. I control more now.")
                             # prevent repeat triggers
