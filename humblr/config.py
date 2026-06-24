@@ -24,7 +24,8 @@ DEFAULT_CONFIG = {
     },
     "corruption": {
         "enabled": True,
-        "base_increase_per_hour": 1.2,
+        "base_increase_per_hour": 2.5,  # more realistic base
+        "passive_increase_per_hour": 0.8,  # slow even when idle
         "max_level": 100
     },
     "ui": {

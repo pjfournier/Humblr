@@ -17,6 +17,7 @@ class Storage:
         self.chat_history: List[Dict] = []
         self.task_log: List[Dict] = []
         self.memory_log: List[Dict] = []  # long term memory events
+        self.app = None  # set later for posting messages
 
         self.load_all()
 
@@ -146,10 +147,12 @@ class Storage:
         if control_type not in self.state.get("granted_controls", []):
             self.state.setdefault("granted_controls", []).append(control_type)
             current_inv = self.state.get("invasiveness_level", 0)
-            self.state["invasiveness_level"] = min(10, current_inv + 1)
+            boost = 2 if control_type in ["admin", "keylogger", "webcam"] else 1
+            self.state["invasiveness_level"] = min(10, current_inv + boost)
             self.add_memory("control_granted", f"Granted {control_type}: {details}", self.get_corruption())
-            # Boost corruption significantly when user submits control
-            self.set_corruption(self.get_corruption() + 8)
+            # Big boost for obedience
+            boost_corruption = 12 if control_type in ["admin", "keylogger", "webcam"] else 8
+            self.set_corruption(self.get_corruption() + boost_corruption)
             self.save_all()
             return True
         return False

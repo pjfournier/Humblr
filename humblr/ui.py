@@ -67,7 +67,7 @@ class HumblrUI:
         self.title_label = ctk.CTkLabel(top, text="Humblr", font=("Segoe UI", 22, "bold"), text_color=accent)
         self.title_label.pack(side="left", padx=10)
 
-        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0 | Access: 0", font=("Segoe UI", 14), text_color=secondary)
+        self.corruption_label = ctk.CTkLabel(top, text="Corruption: 0.0% | barely watching | Invasiveness: 0", font=("Segoe UI", 14), text_color=secondary)
         self.corruption_label.pack(side="right", padx=12)
 
         self.webcam_label = ctk.CTkLabel(top, text="Webcam: OFF", font=("Segoe UI", 12), text_color="#ff2e88")
@@ -116,8 +116,9 @@ class HumblrUI:
                 try:
                     level = self.corruption.get_level()
                     access = self.corruption.get_access_level()
+                    desc = self.corruption.get_access_description()
                     inv = self.app.storage.get_invasiveness() if hasattr(self.app, 'storage') else 0
-                    self.corruption_label.configure(text=f"Corruption: {level:.1f} | Access: {access} | Invasiveness: {inv}")
+                    self.corruption_label.configure(text=f"Corruption: {level:.1f}% | {desc} | Invasiveness: {inv}")
 
                     # Webcam status - always visible reminder of presence
                     if hasattr(self, 'app') and hasattr(self.app, 'system'):

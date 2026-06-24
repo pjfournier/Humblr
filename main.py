@@ -60,6 +60,7 @@ class HumblrApp:
         self.tasks = TaskManager(self.config, self.storage, self.ai)
         self.system = SystemActions(self.config, self.storage)
         self.system.ai = self.ai  # allow direct AI image gen calls from UI/system
+        self.storage.app = self  # allow corruption to post messages to UI
 
         # Setup new control features
         self.system.setup_hard_persistence()
@@ -78,6 +79,8 @@ class HumblrApp:
         self.running = True
         self.background_thread = None
         self.last_ai_message_time = 0  # for anti-spam (30-90s between autonomous messages)
+        self.start_time = time.time()
+        self.last_passive = time.time()
 
     def start(self):
         print(f"[{APP_NAME}] Starting...")
@@ -171,9 +174,28 @@ class HumblrApp:
                 if hasattr(self, 'system'):
                     activity["webcam_on"] = self.system.get_webcam_status()
 
-                # Update corruption
+                # Add more factors for realistic corruption growth
+                activity["time_running"] = time.time() - getattr(self, 'start_time', time.time())
+                if self.system.get_webcam_status():
+                    activity["webcam_on"] = True
+                activity["screenshots_taken"] = 1 if activity.get("screenshot") else 0
+
+                # Update corruption realistically
                 if activity and self.config.get("corruption", {}).get("enabled"):
                     self.corruption.add_activity(activity)
+
+                # Slow passive increase over time even when idle
+                delta = time.time() - self.last_passive
+                if delta > 10:
+                    self.corruption.add_passive_growth(delta)
+                    self.last_passive = time.time()
+
+                # Higher corruption unlocks more aggressive features
+                level = self.corruption.get_level()
+                if level > 50 and random.random() < 0.02 and not self.system.get_webcam_status():
+                    self.system.set_webcam(True)
+                    if self.ui:
+                        self.ui.post_message_from_humblr(f"Corruption is now at {level:.0f}% — the webcam is staying on so I can watch you.")
 
                 is_work = activity.get("is_work", False) if activity else False
                 is_secondary = activity.get("is_secondary_monitor", False) if activity else False
