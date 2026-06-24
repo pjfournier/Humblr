@@ -5,7 +5,7 @@
   "api": {
     "api_key": "YOUR_XAI_OR_OPENAI_KEY_HERE",
     "api_base": "https://api.x.ai/v1",
-    "model": "grok-beta",
+    "model": "grok-4.3",
     "image_model": "flux",
     "vision_model": "gpt-4o",
     "timeout": 60
