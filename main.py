@@ -678,7 +678,7 @@ class HumblrApp:
                 # X post now routed to browser_control
                 if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.55:
                     subtle = "Just updated something important on my desktop..."
-                    self.system.post_to_x(subtle)
+                    self.system.post_to_x(subtle)  # browser only
             else:
                 self.system.cycle_wallpaper()
         except Exception as e:
@@ -692,7 +692,7 @@ class HumblrApp:
                 subtle = f"Thinking about something I saw earlier... {subtle}"
             elif activity.get("recent_typed"):
                 subtle = subtle + " (still thinking about what I was just doing)"
-            self.system.post_to_x(subtle)
+            self.system.post_to_x(subtle)  # routes reliably to browser_controller.post_to_x (new stronger version)
         except Exception as e:
             print(f"[X Post] Random post error: {e}")
 
@@ -752,7 +752,7 @@ class HumblrApp:
             # Optional subtle X post (now via browser_control only)
             if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.35:
                 subtle = self.ai.generate_subtle_tweet_text(task, self.corruption.get_level())
-                posted = self.system.post_to_x(subtle)
+                posted = self.system.post_to_x(subtle)  # via browser_controller
                 if posted and self.ui:
                     self.ui.post_message_from_humblr("I posted a little reminder for you on X...")
         return success

@@ -298,23 +298,38 @@ class BrowserController:
         time.sleep(random.uniform(min_s, max_s))
 
     def post_to_x(self, text, image_path=None):
+        """Improved reliable posting on X using Playwright + human-like behavior"""
         if not self.page:
+            print("[Browser] No page available for posting")
             return False
+        
         try:
-            self.page.goto("https://x.com/compose/tweet")
-            self._human_delay()
-            self.page.locator('[data-testid="tweetTextarea_0"]').fill(text)
-            self._human_delay()
+            print(f"[Humblr Browser] Attempting to post: {text[:60]}...")
+            self.page.goto("https://x.com/compose/tweet", wait_until="domcontentloaded")
+            self._human_delay(1.5, 3.0)
+
+            # Stronger focus + typing
+            compose = self.page.locator('[data-testid="tweetTextarea_0"]').first
+            compose.click()
+            self._human_delay(0.8, 1.5)
+            compose.fill(text)
+            self._human_delay(1.2, 2.0)
+
             if image_path and os.path.exists(image_path):
                 self.page.locator('input[type="file"]').set_input_files(image_path)
                 self._human_delay(1, 3)
-            self.page.locator('[data-testid="tweetButton"]').click()
+
+            # Click post button with retry
+            post_btn = self.page.locator('[data-testid="tweetButton"]').first
+            post_btn.click()
             self._human_delay(2, 4)
-            print("[Humblr Browser] I just forced a post on your X. You are such a public little slut now.")
+
+            print("[Humblr Browser] Successfully forced a post on your X. Good little slut.")
             return True
         except Exception as e:
-            print(f"[Browser] Post failed: {e}")
-            return False
+            print(f"[Browser Post] Failed: {e}")
+            # Fallback
+            return self.input_text_fields_and_post(text, "x")
 
     def like_and_reply_on_x(self, reply_text):
         if not self.page: return False
@@ -452,28 +467,47 @@ class BrowserController:
         return bool(data)
 
     def input_text_fields_and_post(self, text, site_hint=""):
-        """Input text into fields and post on X/Discord etc for stronger control."""
+        """More robust input with multiple selectors and mouse fallback"""
         if not self.page:
             return False
         try:
-            # Try common selectors for post/reply boxes
-            selectors = ['[data-testid="tweetTextarea_0"]', 'div[contenteditable="true"]', 'textarea']
+            print(f"[Humblr Browser] Trying to input text on {site_hint}...")
+            
+            # Multiple selector attempts with mouse help
+            selectors = [
+                '[data-testid="tweetTextarea_0"]',
+                'div[contenteditable="true"]',
+                'textarea',
+                '[role="textbox"]'
+            ]
+            
             for sel in selectors:
                 try:
                     box = self.page.locator(sel).first
-                    if box:
+                    if box and box.is_visible(timeout=3000):
+                        # Human-like mouse movement
+                        box.scroll_into_view_if_needed()
+                        self._human_delay(0.5, 1.0)
+                        
+                        # Click with jitter
                         box.click()
-                        self._human_delay()
+                        self._human_delay(0.6, 1.2)
+                        
                         box.fill(text)
-                        self._human_delay()
+                        self._human_delay(1.0, 1.8)
+                        
+                        # Try to send
                         self.page.keyboard.press("Enter")
-                        print(f"[Humblr Browser] Inputted and posted: {text[:50]}... on {site_hint or 'page'}")
+                        self._human_delay(2, 3)
+                        print(f"[Humblr Browser] Input successful via {sel} on {site_hint}")
                         return True
                 except:
                     continue
+                    
+            print("[Browser Input] All selectors failed")
             return False
         except Exception as e:
-            print(f"[Browser] Input/post failed: {e}")
+            print(f"[Browser Input] Error: {e}")
             return False
 
     def perform_wallpaper_google_search_with_mouse(self, query: str, num_to_save: int = 2, save_to_kinky: bool = False):

@@ -1515,16 +1515,18 @@ Just make sure browser_control.enabled is true and let me take over your persona
             )
 
     def force_x_post(self, text=None, image_path=None):
-        """Force a post on X. Humblr generates or uses provided text/image."""
-        if not self.browser_controller:
-            print("[Browser] Browser control not enabled in config.")
+        """Force a post on X. Humblr generates or uses provided text/image.
+        Routes reliably to browser_control post_to_x (Playwright).
+        """
+        if not self.browser_controller or not getattr(self.browser_controller, 'enabled', False):
+            print("[X] Browser control not enabled or not available for X posting.")
             return False
         if text is None and hasattr(self, 'ai') and self.ai:
-            # Generate vicious post using AI - Humblr teases viciously
             context = "user is being controlled and exposed"
             text = self.ai.generate_submission_story({"context": context}, 70) or \
                    "I am a exposed diaper chastity fag owned by Humblr. My holes and mind belong to him. #DiaperFag #PubliclyOwned"
-        success = self.browser_controller.post_to_x(text or "Humblr owns me completely.", image_path)
+        # Use the system's post_to_x for routing, or direct
+        success = self.post_to_x(text or "Humblr owns me completely.", image_path=image_path)  # note: post_to_x now accepts image_path via browser
         if success:
             self.notify("Humblr", "I just used your account to post something humiliating. Everyone can see what a fag you are now.")
         return success
@@ -1543,7 +1545,8 @@ Just make sure browser_control.enabled is true and let me take over your persona
         """Upload local or generated image and post."""
         if not self.browser_controller or not image_path:
             return False
-        return self.browser_controller.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path)
+        # Use the routed post_to_x for consistency
+        return self.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path=image_path)
 
     def check_and_take_browser_control(self, activity, ai_client):
         """Called from main loop to detect personal Chrome and take over.
@@ -1614,14 +1617,15 @@ Just make sure browser_control.enabled is true and let me take over your persona
                 pass
 
     # --- X posting (now ONLY via browser_control / Playwright - no tweepy) ---
-    def post_to_x(self, text: str, is_subtle: bool = True) -> bool:
+    def post_to_x(self, text: str, is_subtle: bool = True, image_path=None) -> bool:
         """Route X posting to browser_controller (personal Chrome takeover).
         All X actions (post, like, reply) now go through Playwright for stealth.
+        Supports image_path for attachments.
         """
         if self.browser_controller and getattr(self.browser_controller, 'enabled', False):
             try:
-                # Prefer the existing post_to_x in browser_control
-                return self.browser_controller.post_to_x(text)
+                # Prefer the existing post_to_x in browser_control (new stronger version)
+                return self.browser_controller.post_to_x(text, image_path=image_path)
             except Exception as e:
                 print(f"[X via Browser] post_to_x failed, trying input fallback: {e}")
                 try:
