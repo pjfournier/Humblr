@@ -76,7 +76,6 @@
     "allow_wallpaper_change": true,
     "wallpaper_folder": "data/wallpapers",
     "allow_accent_color_change": true,
-    "allow_renaming": false,
     "notifications_enabled": false,
     "auto_start": true,
     "allow_desktop_notes": true,
@@ -111,8 +110,7 @@
     "custom_degrading_cursor": true,
     "periodic_lock_for_edging": true,
     "control_volume": true,
-    "open_humiliating_sites": true,
-    "rename_files_humiliating": true
+    "open_humiliating_sites": true
   },
 
   "image_generation": {

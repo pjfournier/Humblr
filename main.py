@@ -114,9 +114,10 @@ class HumblrApp:
         self.ui = None
         self.running = True
         self.background_thread = None
-        self.last_ai_message_time = 0  # for anti-spam (30-90s between autonomous messages)
+        self.last_ai_message_time = 0  # for anti-spam (90-180s between autonomous messages)
         self.start_time = time.time()
         self.last_passive = time.time()
+        self._last_activity_sig = ""
 
     def start(self):
         print(f"[{APP_NAME}] Starting...")
@@ -289,13 +290,13 @@ class HumblrApp:
                             self.storage.add_memory("screenshot_analysis", analysis[:150], self.corruption.get_level())
                     last_screenshot = time.time()
 
-                # Always make presence known: periodic forced awareness on secondary
-                if can_be_aggressive and random.random() < 0.03:
+                # Always make presence known: periodic forced awareness on secondary - reduced
+                if can_be_aggressive and random.random() < 0.015:
                     self._force_presence_on_secondary(activity or {})
 
                 # As corruption grows, Humblr gets more aggressive BUT respect work
                 # (already defined earlier)
-                if access >= 2 and random.random() < 0.1:
+                if access >= 2 and random.random() < 0.05:
                     self._escalate_control(access, activity or {}, can_be_aggressive)
 
                 # Autonomous actions - guarded by work safety
@@ -311,13 +312,13 @@ class HumblrApp:
                 # These fire independently and frequently. No user input or buttons needed.
                 # It lives on the second monitor and pushes constantly using all sensor data.
 
-                # Wallpaper: Random AI-generated kinky changes via xAI (no local images required).
+                # Wallpaper: Random AI-generated kinky changes via xAI (no local images required). Reduced frequency.
                 # More invasive at high levels (bolder themes, immediate force).
-                if can_be_aggressive and random.random() < (0.15 + min(0.15, self.storage.get_invasiveness() * 0.02)):
+                if can_be_aggressive and random.random() < (0.06 + min(0.08, self.storage.get_invasiveness() * 0.01)):
                     self._do_wallpaper_update(activity or {})
 
                 # New: if user has an image open directly in browser, claim it as wallpaper
-                if can_be_aggressive and random.random() < 0.08:
+                if can_be_aggressive and random.random() < 0.04:
                     self.system.set_current_browser_image_as_wallpaper(activity or {})
 
                 # Real browser takeover for non-work Chrome (personal profile only)
@@ -352,23 +353,23 @@ class HumblrApp:
                 if can_be_aggressive and random.random() < 0.12:
                     self._force_presence_on_secondary(activity or {})
 
-                # Real-time AI comments on active reading, X content, or typing.
-                if random.random() < 0.28 and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
+                # Real-time AI comments on active reading, X content, or typing. Only if new meaningful activity.
+                if random.random() < 0.15 and self._is_new_meaningful_activity(activity) and activity and (activity.get("x_content") or activity.get("recent_typed") or activity.get("visible_text")):
                     if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         reaction = self.ai.generate_reaction(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if reaction:
                             self.ui.post_message_from_humblr(reaction)
 
                 # Ask personal questions to dig and learn about the user (slow probing over time)
-                if can_be_aggressive and random.random() < 0.25:
+                if can_be_aggressive and random.random() < 0.12 and self._is_new_meaningful_activity(activity):
                     if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         question = self.ai.generate_personal_question(self.storage.get_memory_summary(10), activity or {}, self.corruption.get_level())
                         if question:
                             self.ui.post_message_from_humblr(question)
                             self.storage.add_memory("question_asked", question[:100], self.corruption.get_level())
 
-                # Comment specifically on what's open on the screens right now
-                if random.random() < 0.30 and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
+                # Comment specifically on what's open on the screens right now - only new
+                if random.random() < 0.15 and self._is_new_meaningful_activity(activity) and activity and (activity.get("visible_text") or activity.get("url") or activity.get("window_title")):
                     if self._can_send_ai_message() and self.ui and self.ui.is_ready() and getattr(self.ai, 'client', None):
                         screen_comment = self.ai.generate_screen_comment(activity or {}, self.corruption.get_level(), self.storage.get_memory_summary(5))
                         if screen_comment:
@@ -471,7 +472,7 @@ class HumblrApp:
                 # It "searches" current activity for new access points (computer admin, FB, Amazon, etc.).
                 inv = self.storage.get_invasiveness()
                 # Reduced spam + system now has strong internal cooldowns + admin obedience check
-                if random.random() < 0.09 + (inv * 0.01):
+                if random.random() < 0.04 + (inv * 0.005):
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
                 # Assist/trick for API keys to gain more power (xAI for images, X for posts)
@@ -774,12 +775,27 @@ class HumblrApp:
         os._exit(0)
 
     def _can_send_ai_message(self) -> bool:
-        """Respect anti-spam: 1 thoughtful message every 30-90 seconds unless user is active."""
+        """Stronger anti-spam: 90-180 seconds between autonomous messages unless user is active (typing, new meaningful activity)."""
         now = time.time()
-        min_interval = random.randint(30, 90)
+        min_interval = random.randint(90, 180)
         if now - self.last_ai_message_time < min_interval:
             return False
         self.last_ai_message_time = now
+        return True
+
+    def _is_new_meaningful_activity(self, activity: dict) -> bool:
+        """Only comment when there is new, meaningful activity (new URL, new specific visible/typed content, context change)."""
+        if not activity:
+            return False
+        sig = (
+            activity.get("url", "")[:50] +
+            activity.get("recent_typed", "")[:30] +
+            activity.get("visible_text", "")[:30] +
+            activity.get("context_type", "")
+        )
+        if sig == getattr(self, '_last_activity_sig', ''):
+            return False
+        self._last_activity_sig = sig
         return True
 
     def shutdown(self):

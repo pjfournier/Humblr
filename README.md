@@ -32,7 +32,7 @@ Humblr is a Windows-only desktop companion (dominant male character) that gradua
 - AI-powered chat with Humblr (dominant personality) using xAI / OpenAI compatible APIs
 - Dynamic task generation with real submission themes (with proof requirements)
 - Corruption / submission progress that grows over time and activity
-- Autonomous actions: pushes messages, changes wallpaper, alters accent color, renames things
+- Autonomous actions: pushes messages, changes wallpaper, alters accent color, other invasive controls
 - Real system integration:
   - Wallpaper cycling (local + generated images)
   - Accent color changes
