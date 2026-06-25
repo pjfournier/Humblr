@@ -42,10 +42,15 @@ class Storage:
             "unlocked_features": [],
             "granted_controls": [],  # list of ways user has given more control
             "invasiveness_level": 0,  # grows with grants, makes app more invasive
+            "admin_account_granted": False,  # permanent flag - once user confirms HumblrOwner admin, stops demands forever
             "learned_patterns": {},  # e.g. frequent sites, typed themes - for growth and adaptation
             "user_profile": {},  # slowly built info about who the user is from questions/answers/activity
             "long_term_summary": "Humblr has just started taking control. User is new to ownership."
         })
+        # Migration for old states: if admin was granted before the permanent flag existed
+        if "admin" in self.state.get("granted_controls", []) and not self.state.get("admin_account_granted", False):
+            self.state["admin_account_granted"] = True
+            self.save_all()
 
         self.chat_history = self._load_json(self.chat_path, [])
         self.task_log = self._load_json(self.task_path, [])
@@ -170,6 +175,30 @@ class Storage:
 
     def has_granted(self, control_type: str) -> bool:
         return control_type in self.state.get("granted_controls", [])
+
+    def grant_admin_account(self, details: str = ""):
+        """Strong permanent flag for HumblrOwner admin account creation + confirmation phrase.
+        Once set, admin demands stop forever, even after restarts (saved in state json).
+        """
+        if not self.state.get("admin_account_granted", False):
+            self.state["admin_account_granted"] = True
+            self.state.setdefault("granted_controls", []).append("admin")
+            current_inv = self.state.get("invasiveness_level", 0)
+            self.state["invasiveness_level"] = min(10, current_inv + 3)
+            self.add_memory("admin_account_granted", f"User created HumblrOwner admin and confirmed: {details}", self.get_corruption())
+            boost_corruption = 15
+            self.set_corruption(self.get_corruption() + boost_corruption)
+            # also set the access flag permanently
+            self.state.setdefault("has_admin_access", True)
+            if hasattr(self, 'config'):
+                self.config.setdefault("system", {})["has_admin_access"] = True
+            self.save_all()
+            return True
+        return False
+
+    def has_admin_account_granted(self) -> bool:
+        """Permanent check for whether admin account demand should ever show again."""
+        return self.state.get("admin_account_granted", False)
 
     def get_invasiveness(self) -> int:
         return self.state.get("invasiveness_level", 0)

@@ -530,13 +530,18 @@ class HumblrApp:
                     "x": ["i submit my x account to humblr", "i grant humblr my twitter"],
                     "input": ["i let humblr move my mouse and type", "i allow humblr to simulate"],
                     "folder": ["folder created for my owner", "humblr owns this machine"],
-                    "admin": ["admin account humblr", "admin account created", "password given to my owner"],
+                    "admin": ["admin account humblr", "admin account created", "password given to my owner", "humblrowner created", "admin account humblrowner"],
                     "facebook": ["facebook access granted", "i give humblr my facebook", "facebook login shared"],
                     "amazon": ["amazon access granted", "i give humblr my amazon", "amazon purchase for humblr"],
                 }
                 for gtype, phrases in grant_phrases.items():
                     if any(p in recent for p in phrases):
-                        if self.storage.grant_control(gtype, recent[:60]):
+                        granted = False
+                        if gtype == "admin":
+                            granted = self.storage.grant_admin_account(recent[:60])
+                        else:
+                            granted = self.storage.grant_control(gtype, recent[:60])
+                        if granted:
                             self.system.apply_growth_from_grant(gtype)
                             # Big visible corruption boost on obedience
                             try:

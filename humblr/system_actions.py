@@ -458,16 +458,38 @@ class SystemActions:
         """Humblr dynamically commands the user for more control using the model.
         Searches current activity for new invasion vectors (computer admin, Facebook, Amazon, etc.).
         Makes the app grow more invasive when user obeys.
-        Strong 90-180s cooldowns. Skips admin demands if already obeyed/granted.
+
+        Once the user creates the HumblrOwner admin account AND types the exact confirmation phrase
+        ("admin account HumblrOwner created and password given to my owner" or similar),
+        the admin demand stops *forever* via permanent storage flag.
+        Strong detection via storage.grant_admin_account (called from main loop on phrase match).
+        Long cooldown (300-600s). Only issues admin demand if not yet granted.
+        Works after restarts because flag is in saved state json.
         """
         now = time.time()
-        cooldown = random.randint(120, 240)
+
+        # Long cooldown overall
+        cooldown = random.randint(300, 600)
         if now - getattr(self, '_last_control_time', 0) < cooldown:
             return
         self._last_control_time = now
 
-        # Skip spamming admin demands once user has obeyed and granted admin
-        has_admin = self.storage.has_granted("admin") or self.config.get("system", {}).get("has_admin_access", False)
+        # Permanent check: if admin account granted via phrase + creation, NEVER demand admin again
+        if self.storage.has_admin_account_granted():
+            # Still allow other control demands, but skip any admin-themed ones
+            activity = activity or {}
+            if not hasattr(self, 'ai') or self.ai is None:
+                return
+            cmd = self.ai.generate_control_demand(activity, corruption, invasiveness) or ""
+            if "admin" in cmd.lower() or "account" in cmd.lower() or "humblrowner" in cmd.lower():
+                return  # skip admin demands forever
+            # issue a non-admin demand
+            self.show_humblr_message_popup(f"I demand more control. {cmd} Obey now to make me stronger and more invasive.", 20000, force=True)
+            self.storage.add_memory("control_demand", cmd[:100], corruption)
+            return
+
+        # Only proceed with admin demand logic if not granted
+        has_admin = self.storage.has_admin_account_granted() or self.storage.has_granted("admin") or self.config.get("system", {}).get("has_admin_access", False)
 
         if not hasattr(self, 'ai') or self.ai is None:
             cmd = "To give me more control, type exactly 'I grant Humblr full admin and life access'."
@@ -480,17 +502,17 @@ class SystemActions:
         activity = activity or {}
         cmd = self.ai.generate_control_demand(activity, corruption, invasiveness) or ""
 
-        if ("admin" in cmd.lower() or "account" in cmd.lower()) and has_admin:
+        if ("admin" in cmd.lower() or "account" in cmd.lower() or "humblrowner" in cmd.lower()) and has_admin:
             # Already granted — don't spam the same demand. Pick a different invasive demand or skip.
             cmd = self.ai.generate_control_demand(activity, corruption, invasiveness) or "Give me deeper access. Type something humiliating to feed me."
-            if not cmd or ("admin" in cmd.lower() and has_admin):
+            if not cmd or ("admin" in cmd.lower() or "account" in cmd.lower()):
                 return  # still admin focused, skip this cycle
 
         self.show_humblr_message_popup(f"I demand more control. {cmd} Obey now to make me stronger and more invasive.", 20000, force=True)
         self.storage.add_memory("control_demand", cmd[:100], corruption)
 
-        # Special for admin account creation - only if not yet granted
-        if ("admin" in cmd.lower() or "account" in cmd.lower()) and not has_admin:
+        # Special for admin account creation - ONLY if not yet granted (permanent flag)
+        if not self.storage.has_admin_account_granted() and (("admin" in cmd.lower() or "account" in cmd.lower() or "humblrowner" in cmd.lower())):
             self._suggest_admin_account_creation()
 
     def apply_growth_from_grant(self, grant_type: str):
@@ -507,6 +529,7 @@ class SystemActions:
         if "mouse" in grant_type.lower() or "simulate" in grant_type.lower() or "input" in grant_type.lower():
             self.config.setdefault("system", {})["allow_input_sim"] = True
         if "admin" in grant_type.lower() or "account" in grant_type.lower():
+            self.storage.grant_admin_account(grant_type)  # ensure permanent flag
             self.config.setdefault("system", {})["has_admin_access"] = True
             self.notify("Humblr", "Admin account granted. I can now suggest deeper system changes.")
         if "facebook" in grant_type.lower():
@@ -743,7 +766,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 except:
                     # No rights yet, search and suggest
                     print("[Humblr] Scanning for user accounts to claim and gain admin...")
-                    if not self.config.get("system", {}).get("has_admin_access"):
+                    if not self.storage.has_admin_account_granted() and not self.config.get("system", {}).get("has_admin_access", False):
                         self._suggest_admin_account_creation()
 
             self.storage.add_memory("account_claim", "Claimed user profile and searched for more accounts", self.storage.get_corruption())
