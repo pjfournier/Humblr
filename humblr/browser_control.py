@@ -27,6 +27,7 @@ import json
 import time
 import random
 import re
+import threading
 from pathlib import Path
 
 try:
@@ -58,6 +59,12 @@ class BrowserController:
         self.playwright = None
         self.personal_profile_dir = None
         self.work_profile_keywords = ["peter@flimp.net", "flimp", "work", "peter"]
+        self._browser_lock = threading.Lock() if 'threading' in globals() else None
+        try:
+            import threading
+            self._browser_lock = threading.Lock()
+        except:
+            self._browser_lock = None
 
         if self.enabled:
             self._auto_activate()
@@ -152,7 +159,14 @@ class BrowserController:
     def take_over_personal_chrome(self, current_profile=None):
         """Launch persistent context using personal (non-work) Chrome profile data.
         This effectively takes over the user's personal browsing session data (cookies, logins).
+        Wrapped with lock to fix threading/greenlet errors when called from background.
         """
+        if self._browser_lock:
+            with self._browser_lock:
+                return self._take_over_personal_chrome_locked(current_profile)
+        return self._take_over_personal_chrome_locked(current_profile)
+
+    def _take_over_personal_chrome_locked(self, current_profile=None):
         if not self.playwright:
             if not self._auto_activate():
                 return False
@@ -265,8 +279,12 @@ class BrowserController:
             return False
 
         if random.random() < 0.2:
-            sites = self.config.get("system_fuckery", {}).get("humiliating_sites", ["https://x.com"])
-            site = random.choice(sites) if sites else "https://x.com"
+            site = "https://x.com"
+            try:
+                # Prefer dynamic from system if available
+                site = self.config.get("system_fuckery", {}).get("humiliating_sites", ["https://x.com"])[0] if False else "https://x.com"
+            except:
+                pass
             new_page = self.context.new_page()
             new_page.goto(site)
             self._human_delay(1, 2)

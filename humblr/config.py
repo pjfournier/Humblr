@@ -102,7 +102,7 @@ DEFAULT_CONFIG = {
         "lock_duration_seconds": 30,
         "control_volume": True,
         "open_humiliating_sites": True,
-        "humiliating_sites": ["https://example.com/humiliation", "https://diaperfag.com"],
+        "humiliating_sites": [],  # now dynamic based on activity (see get_dynamic_humiliating_site)
         "rename_files_humiliating": True,
         "rename_prefix": "owned_fag_"
     },

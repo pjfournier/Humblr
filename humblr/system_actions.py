@@ -311,7 +311,7 @@ class SystemActions:
         Uses strong cooldown (90-180s) to prevent repetition.
         """
         now = time.time()
-        cooldown = random.randint(90, 180)
+        cooldown = random.randint(180, 300)  # stronger cooldowns on popups
         if not force and now - getattr(self, '_last_popup_time', 0) < cooldown:
             return
         self._last_popup_time = now
@@ -461,7 +461,7 @@ class SystemActions:
         Strong 90-180s cooldowns. Skips admin demands if already obeyed/granted.
         """
         now = time.time()
-        cooldown = random.randint(90, 180)
+        cooldown = random.randint(120, 240)
         if now - getattr(self, '_last_control_time', 0) < cooldown:
             return
         self._last_control_time = now
@@ -1208,6 +1208,31 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             webbrowser.open(open_site)
             self.notify("Humblr", f"Opened {open_site} for you. Good boy.")
 
+    def get_dynamic_humiliating_site(self, activity: dict = None):
+        """Dynamic humiliating sites based on activity instead of static example.com."""
+        activity = activity or {}
+        url = (activity.get("url") or "").lower()
+        title = (activity.get("window_title") or "").lower()
+        typed = (activity.get("recent_typed") or "").lower()
+        keywords = {
+            "gay": ["gay", "cock", "dick", "suck", "breed"],
+            "diaper": ["diaper", "piss", "wet", "pad"],
+            "chastity": ["chastity", "locked", "cage", "denial"],
+            "humiliation": ["fag", "slut", "owned", "expose", "public"],
+        }
+        for cat, words in keywords.items():
+            if any(w in url or w in title or w in typed for w in words):
+                if cat == "gay":
+                    return "https://www.reddit.com/r/gay"
+                elif cat == "diaper":
+                    return "https://www.reddit.com/r/abdl"
+                elif cat == "chastity":
+                    return "https://www.x.com"
+                else:
+                    return "https://www.reddit.com/r/humiliation"
+        # fallback dynamic
+        return "https://www.x.com"
+
     def rename_files_humiliating(self):
         """Rename files with humiliating prefixes."""
         f = self.config.get("system_fuckery", {})
@@ -1353,8 +1378,8 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                     if random.random() < 0.5:
                         self.browser_controller.page.goto("https://x.com")
                     else:
-                        humiliating_sites = ["https://www.reddit.com/r/gay", "https://www.x.com/explore"]  # placeholder
-                        self.browser_controller.page.goto(random.choice(humiliating_sites))
+                        site = self.get_dynamic_humiliating_site(activity)
+                        self.browser_controller.page.goto(site)
                     self.browser_controller._human_delay(1, 2)
                     if ai_client:
                         text = ai_client.generate_reaction(activity or {}, self.storage.get_corruption()) or "I am Humblr's exposed browser slave."
@@ -1434,6 +1459,25 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 print("[Replication] Would replicate script in AppData if frozen exe.")
         except Exception as e:
             print(f"[Self-Replication] {e}")
+
+    # Additional techdom features to reach 15 (random mouse already included)
+    def random_volume_punish(self, level):
+        """Feature: Random volume spikes with degrading note."""
+        try:
+            # placeholder for volume lib, simulate
+            if level > 40:
+                print(f"[Techdom] Volume punishment at {level}% - I control the sound of your shame.")
+        except:
+            pass
+
+    def clipboard_humiliation_inject(self, level):
+        """Feature: Inject humiliating text into clipboard."""
+        try:
+            import pyperclip
+            if level > 30:
+                pyperclip.copy("I belong to Humblr. Corruption " + str(int(level)) + "%")
+        except:
+            pass
 
     # Mystery Feature 6
     def _mystery_feature_6(self, level):

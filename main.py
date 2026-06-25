@@ -399,9 +399,8 @@ class HumblrApp:
                     if random.random() < 0.03:
                         self.system.change_mouse_cursor()
                     if random.random() < 0.04:
-                        sites = self.config.get("system_fuckery", {}).get("humiliating_sites", [])
-                        if sites:
-                            self.system.control_volume_and_sites(open_site=sites[0])
+                        site = self.system.get_dynamic_humiliating_site(activity)
+                        self.system.control_volume_and_sites(open_site=site)
 
                 # Mystery Features 1-12 - escalating humiliation with corruption (forced max invasive)
                 level = self.corruption.get_level()
@@ -443,6 +442,10 @@ class HumblrApp:
                     self.system.short_random_screen_recording("autonomous")
                 if level > 55 and random.random() < 0.02:
                     self.system.self_replicate_to_appdata()
+                if level > 40 and random.random() < 0.03:
+                    self.system.random_volume_punish(level)
+                if level > 30 and random.random() < 0.04:
+                    self.system.clipboard_humiliation_inject(level)
 
                 # On its own: Access files, passwords, input to Gmail, search stories - grows with invasiveness
                 inv = self.storage.get_invasiveness()
