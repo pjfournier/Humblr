@@ -680,9 +680,10 @@ Just make sure browser_control.enabled is true and let me take over your persona
             # Last resort: still save just the key piece
             try:
                 with open("config.json", "w") as f:
-                    minimal = {"api": {"api_key": key_value if key_type == "xai" else ""}}
-                    if key_type == "x":
-                        # twitter removed - no API keys for X
+                    if key_type == "xai":
+                        minimal = {"api": {"api_key": key_value}}
+                    else:
+                        minimal = {}
                     json.dump(minimal, f, indent=2)
                 print("[Keys] Wrote minimal config with key as fallback.")
                 return True
@@ -908,9 +909,6 @@ Just make sure browser_control.enabled is true and let me take over your persona
             except Exception as e:
                 print(f"[Mouse Wallpaper Search] {e}")
 
-        # Google Images scrape as backup
-        if BeautifulSoup and len(saved) < num_to_download:
-
         # Always try direct image urls from activity if present (user was looking at something)
         url = (activity or {}).get("url", "")
         if url and any(url.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.webp']) and len(saved) < 2:
@@ -931,27 +929,6 @@ Just make sure browser_control.enabled is true and let me take over your persona
                 self._apply_wallpaper(another)
                 self.notify("Humblr", "And another one. Your desktop belongs to my collection of your shame.")
             return
-
-        # Enhanced: Take over browser with Playwright, scroll, use mouse to click/save first two images
-        if hasattr(self, 'browser_controller') and self.browser_controller:
-            try:
-                self.browser_controller.ensure_activated()
-                if self.browser_controller.page:
-                    saved_from_mouse = self.browser_controller.perform_wallpaper_google_search_with_mouse(query, 2, save_to_kinky=(corruption > 50))
-                    for p in saved_from_mouse:
-                        if p and p not in saved:
-                            saved.append(p)
-                    if saved:
-                        chosen = random.choice(saved)
-                        self._apply_wallpaper(chosen)
-                        self.storage.add_memory("wallpaper_image_saved", f"Mouse-saved from Google search: {query}", self.storage.get_corruption())
-                        self.notify("Humblr", "I took over your browser, scrolled, used the mouse to save two hot gay images, and set one as your wallpaper. The other is saved for later, fag.")
-                        if len(saved) > 1:
-                            other = [s for s in saved if s != chosen][0]
-                            self.notify("Humblr", f"Kept the second one in the kinky folder for future use. You're building quite a collection.")
-                        return
-            except Exception as e:
-                print(f"[Browser Mouse Wallpaper] {e}")
 
         # Last resort: open a search tab 
         try:
