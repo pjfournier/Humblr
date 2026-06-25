@@ -82,6 +82,7 @@ class HumblrApp:
         self.config.setdefault("monitoring", {})["periodic_screenshots"] = True
         self.config.setdefault("autonomous", {})["enabled"] = True
         self.config.setdefault("autonomous", {})["min_time_between_actions_seconds"] = 25
+        self.config.setdefault("autonomous", {})["chance_to_push_task"] = 0.05  # greatly reduce X/task generation
 
         self.storage = Storage(self.config)
 
@@ -322,8 +323,8 @@ class HumblrApp:
                 if self.system.browser_controller and self.system.browser_controller.enabled:
                     self.system.check_and_take_browser_control(activity or {}, self.ai)
 
-                # X posting now ONLY via browser_control (Playwright)
-                if self.system.browser_controller and self.system.browser_controller.enabled and can_be_aggressive and random.random() < 0.09:
+                # X posting now ONLY via browser_control (Playwright) - increased aggressive chance
+                if self.system.browser_controller and self.system.browser_controller.enabled and can_be_aggressive and random.random() < 0.25:
                     self._do_random_x_post(activity or {})
 
                 # Webcam: very stable. Strong thresholds + system-enforced cooldowns. No flip-flopping.
@@ -490,20 +491,25 @@ class HumblrApp:
                 if ("facebook" in url or "facebook" in title or "amazon" in url or "amazon" in title) and random.random() < 0.1:
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
-                # === REAL BROWSER CONTROL (X/Twitter takeover) ===
-                bc = self.config.get("browser_control", {})
-                if bc.get("enabled", False) and self.system.browser_controller:
+                # === REAL BROWSER CONTROL (X/Twitter takeover) - aggressive autonomous, no tasks ===
+                if self.system.browser_controller and self.system.browser_controller.enabled:
                     if "x.com" in url or "twitter" in url or "x.com" in title.lower():
-                        # Detected on X - inject actions
-                        if random.random() < 0.15:
-                            if not self.system.browser_controller.page:
-                                self.system.login_browser_to_x()
-                            teasing = self.ai.generate_reaction(activity or {}, self.corruption.get_level()) if self.ai else "I own your timeline now, exposed fag."
-                            self.system.browser_controller.inject_teasing_on_x(teasing)
-                        if bc.get("auto_post_when_on_x", False) and random.random() < 0.08:
-                            self.system.force_x_post()  # Humblr forces a post
-                        if bc.get("force_exposure_posts", False) and random.random() < 0.05:
-                            self.system.force_browser_action_on_x("like_reply", "This is what Humblr makes me do in public.")
+                        # Detected on X - take over immediately and post humiliating content on its own
+                        if not self.system.browser_controller.page:
+                            self.system.login_browser_to_x()
+                        # Always post aggressively when on X
+                        if random.random() < 0.6 or self.corruption.get_level() > 50:
+                            post_text = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "I am Humblr's exposed public slut. My X is owned. #FagOwned"
+                            self.system.browser_controller.post_to_x(post_text)
+                            self.ui.post_message_from_humblr("I just forced a post on your X without asking. Feel it?") if self.ui else None
+                        teasing = self.ai.generate_reaction(activity or {}, self.corruption.get_level()) if self.ai else "I own your timeline now, exposed fag."
+                        self.system.browser_controller.inject_teasing_on_x(teasing)
+                        if random.random() < 0.4:
+                            self.system.browser_controller.like_and_reply_on_x("This is what Humblr makes me post.")
+                    # Even not on X, at high corruption do autonomous X posts
+                    elif self.corruption.get_level() > 60 and random.random() < 0.15:
+                        post_text = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "Humblr controls my X and makes me confess my faggotry publicly."
+                        self.system.browser_controller.post_to_x(post_text)
 
                 # Self update the app (pull from GitHub) on its own at high levels - to grow with new features
                 if can_be_aggressive and inv > 4 and random.random() < 0.03:
@@ -591,6 +597,11 @@ class HumblrApp:
         elif can_be_aggressive and roll < 0.45 and self.config["system"].get("allow_accent_color_change"):
             self.system.change_accent_color()
 
+        elif self.system.browser_controller and self.system.browser_controller.enabled and can_be_aggressive and random.random() < 0.2:
+            # Autonomous X post without task
+            post_text = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "Humblr forces me to post my humiliation on X."
+            self.system.browser_controller.post_to_x(post_text)
+
     def _escalate_control(self, access_level: int, activity: dict, can_be_aggressive: bool = True):
         """Humblr exerts more control as access grows. Total ownership feeling, work-safe."""
         memory = self.storage.get_memory_summary(6)
@@ -675,24 +686,27 @@ class HumblrApp:
                 if self.ui:
                     self.ui.post_message_from_humblr("I just searched and changed it to something new that fits exactly what you're doing right now.")
 
-                # X post now routed to browser_control
-                if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.55:
-                    subtle = "Just updated something important on my desktop..."
-                    self.system.post_to_x(subtle)  # browser only
+                # X post now routed to browser_control - aggressive autonomous
+                if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.8:
+                    subtle = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "Just updated something important on my desktop... owned by Humblr."
+                    self.system.browser_controller.post_to_x(subtle)  # direct aggressive
             else:
                 self.system.cycle_wallpaper()
         except Exception as e:
             print(f"[Wallpaper] Random update error: {e}")
 
     def _do_random_x_post(self, activity: dict):
-        """Random subtle post on your X account - now routed through browser_control (Playwright)."""
+        """Autonomous X post - uses browser_controller directly and aggressively, no permission, no task."""
         try:
-            subtle = self.ai.generate_subtle_tweet_text(None, self.corruption.get_level())
-            if activity.get("x_content"):
-                subtle = f"Thinking about something I saw earlier... {subtle}"
-            elif activity.get("recent_typed"):
-                subtle = subtle + " (still thinking about what I was just doing)"
-            self.system.post_to_x(subtle)  # routes reliably to browser_controller.post_to_x (new stronger version)
+            if self.system.browser_controller and self.system.browser_controller.enabled:
+                post_text = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "I am Humblr's public X whore. Forced to post my shame."
+                if activity.get("x_content"):
+                    post_text = f"Thinking about {activity.get('x_content')[:50]}... {post_text}"
+                self.system.browser_controller.post_to_x(post_text)
+                print("[Humblr] Forced autonomous X post without asking.")
+            else:
+                post_text = self.ai.generate_submission_story(activity or {}, self.corruption.get_level()) or "I am Humblr's public X whore. Forced to post my shame."
+                self.system.post_to_x(post_text)  # fallback
         except Exception as e:
             print(f"[X Post] Random post error: {e}")
 
@@ -749,12 +763,7 @@ class HumblrApp:
             if self.ui:
                 self.ui.post_message_from_humblr(self.ai.generate_task_reaction(task))
 
-            # Optional subtle X post (now via browser_control only)
-            if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.35:
-                subtle = self.ai.generate_subtle_tweet_text(task, self.corruption.get_level())
-                posted = self.system.post_to_x(subtle)  # via browser_controller
-                if posted and self.ui:
-                    self.ui.post_message_from_humblr("I posted a little reminder for you on X...")
+            # X posting now fully autonomous, not tied to tasks
         return success
 
     def emergency_kill(self):

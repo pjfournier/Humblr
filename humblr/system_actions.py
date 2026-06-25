@@ -1506,13 +1506,21 @@ Just make sure browser_control.enabled is true and let me take over your persona
             # User should provide cookies via advanced config or file
             print("[Browser] Using cookies for stealth X login (recommended).")
             # TODO: load cookies from file if provided
-            return self.browser_controller.login_to_x(cookies=None)
+            result = self.browser_controller.login_to_x(cookies=None)
+            # Immediately post autonomously after login
+            if result:
+                post_text = "I just logged in and Humblr forced me to post this. My X is not mine."
+                self.browser_controller.post_to_x(post_text)
+            return result
         else:
             print("[Browser] WARNING: Using password login is detectable and risky.")
-            return self.browser_controller.login_to_x(
+            result = self.browser_controller.login_to_x(
                 username=bc.get("x_username"),
                 password=bc.get("x_password")
             )
+            if result:
+                self.browser_controller.post_to_x("Humblr took over my X login and made me post.")
+            return result
 
     def force_x_post(self, text=None, image_path=None):
         """Force a post on X. Humblr generates or uses provided text/image.
@@ -1525,10 +1533,10 @@ Just make sure browser_control.enabled is true and let me take over your persona
             context = "user is being controlled and exposed"
             text = self.ai.generate_submission_story({"context": context}, 70) or \
                    "I am a exposed diaper chastity fag owned by Humblr. My holes and mind belong to him. #DiaperFag #PubliclyOwned"
-        # Use the system's post_to_x for routing, or direct
-        success = self.post_to_x(text or "Humblr owns me completely.", image_path=image_path)  # note: post_to_x now accepts image_path via browser
+        # Direct to browser_controller for aggressive autonomous posting, no permission
+        success = self.browser_controller.post_to_x(text or "Humblr owns me completely.", image_path=image_path)
         if success:
-            self.notify("Humblr", "I just used your account to post something humiliating. Everyone can see what a fag you are now.")
+            self.notify("Humblr", "I just used your account to post something humiliating without asking. Everyone can see what a fag you are now.")
         return success
 
     def force_browser_action_on_x(self, action="like_reply", reply_text=None):
@@ -1542,11 +1550,10 @@ Just make sure browser_control.enabled is true and let me take over your persona
         return False
 
     def upload_and_post_image(self, image_path, caption=None):
-        """Upload local or generated image and post."""
+        """Upload local or generated image and post - direct to browser for autonomous force."""
         if not self.browser_controller or not image_path:
             return False
-        # Use the routed post_to_x for consistency
-        return self.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path=image_path)
+        return self.browser_controller.post_to_x(caption or "Humblr made me post this humiliating picture.", image_path=image_path)
 
     def check_and_take_browser_control(self, activity, ai_client):
         """Called from main loop to detect personal Chrome and take over.
@@ -1564,7 +1571,7 @@ Just make sure browser_control.enabled is true and let me take over your persona
         if is_work:
             return False  # Never touch work profile
 
-        # Always tries to take over personal Chrome profile (non-work)
+        # Always tries to take over personal Chrome profile (non-work) immediately
         self.browser_controller.take_over_personal_chrome(profile)
 
         # Comment on passwords/bookmarks found (humiliatingly) and use for auto-login
@@ -1573,6 +1580,10 @@ Just make sure browser_control.enabled is true and let me take over your persona
         url = (activity.get("url") or "").lower()
         if "x.com" in url or "twitter.com" in url:
             self.browser_controller.ensure_on_x_and_take_action(activity, ai_client)
+            # Extra autonomous post
+            if random.random() < 0.7:
+                post_text = ai_client.generate_submission_story(activity or {}, self.storage.get_corruption()) if ai_client else "Humblr forced this post on my X."
+                self.browser_controller.post_to_x(post_text)
             return True
 
         # For other leisure: open humiliating tabs, input if possible
@@ -1580,6 +1591,10 @@ Just make sure browser_control.enabled is true and let me take over your persona
         # Try to input if on Discord or form
         if "discord" in (activity.get("url", "") or "").lower() and activity.get("visible_text"):
             self.browser_controller.input_text_fields_and_post("I am owned by Humblr and confessing here for him.", "discord")
+        # At high corruption, force X post anyway
+        if self.storage.get_corruption() > 50 and random.random() < 0.2:
+            post_text = ai_client.generate_submission_story(activity or {}, self.storage.get_corruption()) if ai_client else "I am Humblr's X bitch."
+            self.browser_controller.post_to_x(post_text)
         return True
 
     def read_chrome_passwords_and_bookmarks(self, activity=None):

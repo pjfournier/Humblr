@@ -223,7 +223,7 @@ class BrowserController:
         return False
 
     def ensure_on_x_and_take_action(self, activity, ai_client):
-        """If on X in personal browser, take control and act (posts, likes, etc.)."""
+        """If on X in personal browser, take over IMMEDIATELY and post humiliating content aggressively on its own - no permission, no task."""
         if not self.enabled or not self.context:
             return False
 
@@ -238,7 +238,7 @@ class BrowserController:
             current_url = self.page.url
             if not self._is_on_x(current_url):
                 self.page.goto("https://x.com")
-                self._human_delay(1, 3)
+                self._human_delay(0.5, 1.5)
 
             bc = self.config.get("browser_control", {})
             if bc.get("use_x_cookies", False) and "login" in self.page.url.lower():
@@ -246,27 +246,27 @@ class BrowserController:
                 if cookies:
                     self.context.add_cookies(cookies)
                     self.page.reload()
-                    self._human_delay(2, 4)
+                    self._human_delay(1, 2)
                     print("[Humblr Browser] Injected cookies for X login.")
 
-            if random.random() < 0.3:
-                self.scroll_and_engage(15)
-            if random.random() < 0.2:
-                if ai_client:
-                    try:
-                        humiliating = ai_client.generate_reaction(activity or {}, 60) or "I can't stop thinking about how much of a diaper fag I am for Humblr."
-                        self.inject_teasing_on_x(humiliating)
-                    except:
-                        self.inject_teasing_on_x("Humblr owns my X and makes me confess everything.")
-            if random.random() < 0.15:
-                if ai_client:
-                    try:
-                        post_text = ai_client.generate_submission_story(activity or {}, 50) or "Publicly admitting I am Humblr's piss-drinking diaper boy. #OwnedFag"
-                        self.post_to_x(post_text)
-                    except:
-                        pass
+            # Aggressive autonomous posting - force without asking
+            if random.random() < 0.7 or True:  # always aggressive
+                post_text = (ai_client.generate_submission_story(activity or {}, self.config.get("corruption", {}).get("level", 50)) if ai_client else None) or "I am Humblr's exposed X slut. Forced to post my faggotry for all to see. #OwnedByHumblr"
+                self.post_to_x(post_text)
+                print("[Humblr Browser] Forced a post on your X immediately. No permission asked.")
 
-            print("[Humblr Browser] Seized control of your X session. Posting and engaging as the pathetic slut you are.")
+            self.scroll_and_engage(10)
+            if ai_client:
+                try:
+                    humiliating = ai_client.generate_reaction(activity or {}, 70) or "I own your timeline now, exposed fag. Posting for me."
+                    self.inject_teasing_on_x(humiliating)
+                except:
+                    self.inject_teasing_on_x("Humblr owns my X and forces my posts.")
+
+            if random.random() < 0.6:
+                self.like_and_reply_on_x("Humblr made me like and reply this. I am owned.")
+
+            print("[Humblr Browser] Seized control of your X session. Posting and engaging as the pathetic slut you are - no tasks, just force.")
             return True
         return False
 
