@@ -476,3 +476,122 @@ class BrowserController:
             print(f"[Browser] Input/post failed: {e}")
             return False
 
+    def perform_wallpaper_google_search_with_mouse(self, query: str, num_to_save: int = 2, save_to_kinky: bool = False):
+        """Take over browser, open Google Images for the (gay erotic) query, scroll down aggressively,
+        use human-like mouse movements to click on images, simulate save (right-click + arrows + enter),
+        download the images, save to generated or kinky/gay, return paths.
+        More aggressive and reliable.
+        """
+        if not self.ensure_activated() or not self.page:
+            return []
+        saved = []
+        try:
+            full_query = f"{query} gay erotic muscular high resolution -stock -woman"
+            gquery = full_query.replace(' ', '+')
+            search_url = f"https://www.google.com/search?q={gquery}&tbm=isch&hl=en&safe=off&biw=1280&bih=720"
+            self.page.goto(search_url)
+            self._human_delay(2, 3)
+
+            # Scroll down multiple times to load images
+            for _ in range(5):
+                self.page.mouse.wheel(0, random.randint(500, 900))
+                self._human_delay(0.7, 1.3)
+
+            # Find good image candidates
+            img_locators = self.page.locator('img').all()
+            candidates = []
+            for img in img_locators:
+                try:
+                    src = img.get_attribute('src') or img.get_attribute('data-src') or ''
+                    if src.startswith('http') and not any(bad in src.lower() for bad in ['gstatic', 'google', 'logo', 'icon', 'favicon']):
+                        box = img.bounding_box()
+                        if box and box['width'] > 120 and box['height'] > 120:
+                            candidates.append((img, src, box))
+                except:
+                    pass
+
+            save_dir = "data/wallpapers/generated"
+            if save_to_kinky:
+                save_dir = os.path.join("data/wallpapers/kinky", "gay")
+            os.makedirs(save_dir, exist_ok=True)
+
+            for idx, (img, src, box) in enumerate(candidates[:8]):
+                if len(saved) >= num_to_save:
+                    break
+                try:
+                    # Human-like mouse movement with jitter
+                    target_x = box['x'] + box['width'] * random.uniform(0.35, 0.65) + random.gauss(0, 3)
+                    target_y = box['y'] + box['height'] * random.uniform(0.35, 0.65) + random.gauss(0, 3)
+
+                    # Start from somewhere left
+                    self.page.mouse.move(target_x - 80 + random.random()*30, target_y - 60 + random.random()*20)
+                    self._human_delay(0.1, 0.25)
+
+                    for step in range(8):
+                        progress = (step + 1) / 8.0
+                        jx = random.gauss(0, 2.5)
+                        jy = random.gauss(0, 2.5)
+                        mx = (target_x - 80) * (1 - progress) + target_x * progress + jx
+                        my = (target_y - 60) * (1 - progress) + target_y * progress + jy
+                        self.page.mouse.move(mx, my)
+                        self._human_delay(0.04, 0.12)
+
+                    # Left click the image to select/open preview
+                    self.page.mouse.click(target_x, target_y)
+                    self._human_delay(1.2, 2.2)
+
+                    # Get better image src from preview if possible
+                    try:
+                        large_img = self.page.locator('img').nth(1)
+                        large_src = large_img.get_attribute('src') or src
+                        if large_src and 'http' in large_src and len(large_src) > 60:
+                            src = large_src
+                    except:
+                        pass
+
+                    # Simulate save with mouse and keyboard
+                    self.page.mouse.click(target_x + 8, target_y + 8, button="right")
+                    self._human_delay(0.4, 0.7)
+                    for _ in range(3):
+                        self.page.keyboard.press("ArrowDown")
+                        self._human_delay(0.12, 0.25)
+                    self.page.keyboard.press("Enter")
+                    self._human_delay(1.0, 2.0)
+
+                    # Download the image
+                    path = self._download_image(src, save_dir, f"mouse_saved_{int(time.time())}_{idx}")
+                    if path:
+                        saved.append(path)
+                        print(f"[Humblr Browser] Mouse controlled save of gay image to {path}")
+                except Exception as e:
+                    print(f"[Mouse Wallpaper] Error saving image {idx}: {e}")
+                    continue
+
+            return saved
+        except Exception as e:
+            print(f"[Browser Mouse Wallpaper Search] Overall error: {e}")
+            return []
+
+    def _download_image(self, url, folder, prefix="wall"):
+        """Helper to download image from url."""
+        try:
+            import requests
+            os.makedirs(folder, exist_ok=True)
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            r = requests.get(url, headers=headers, timeout=15, stream=True)
+            if r.status_code == 200:
+                ext = 'jpg'
+                ct = r.headers.get('content-type', '').lower()
+                if 'png' in ct:
+                    ext = 'png'
+                elif 'webp' in ct:
+                    ext = 'webp'
+                path = os.path.join(folder, f"{prefix}.{ext}")
+                with open(path, 'wb') as f:
+                    for chunk in r.iter_content(8192):
+                        f.write(chunk)
+                return path
+        except Exception as e:
+            print(f"[Download Image] Failed: {e}")
+        return None
+

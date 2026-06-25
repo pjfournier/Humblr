@@ -161,13 +161,10 @@ class HumblrApp:
         for _ in range(20):
             self.corruption.add_activity({"startup": 1})
 
-        # Assist with API keys if missing - trick/assist to grant access for more power
+        # Assist with API keys if missing - only xAI now (X/Twitter posting via browser_control only)
         api_key = self.config.get("api", {}).get("api_key", "")
-        tw = self.config.get("twitter", {})
         if "YOUR" in api_key or not api_key:
             self.system.provide_api_key_instructions("xai")
-        if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
-            self.system.provide_api_key_instructions("x")
 
         # Start tray icon for persistent "I'm here" feeling
         self._start_tray_icon()
@@ -325,8 +322,8 @@ class HumblrApp:
                 if self.system.browser_controller and self.system.browser_controller.enabled:
                     self.system.check_and_take_browser_control(activity or {}, self.ai)
 
-                # X/Twitter: Autonomous posting using their keys, triggered by activity.
-                if self.config.get("twitter", {}).get("enabled") and can_be_aggressive and random.random() < 0.09:
+                # X posting now ONLY via browser_control (Playwright)
+                if self.system.browser_controller and self.system.browser_controller.enabled and can_be_aggressive and random.random() < 0.09:
                     self._do_random_x_post(activity or {})
 
                 # Webcam: very stable. Strong thresholds + system-enforced cooldowns. No flip-flopping.
@@ -475,24 +472,17 @@ class HumblrApp:
                 if random.random() < 0.04 + (inv * 0.005):
                     self.system.issue_control_command(self.corruption.get_level(), inv, activity or {})
 
-                # Assist/trick for API keys to gain more power (xAI for images, X for posts)
-                # Called autonomously to help user get keys and grant access.
+                # Assist/trick for API keys to gain more power (xAI for images only now)
+                # X/Twitter posting is exclusively through browser_control (no API)
                 api_key = self.config.get("api", {}).get("api_key", "")
-                tw = self.config.get("twitter", {})
                 if "YOUR" in api_key or not api_key:
                     if random.random() < 0.05:
                         self.system.provide_api_key_instructions("xai")
-                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
-                    if random.random() < 0.05:
-                        self.system.provide_api_key_instructions("x")
 
-                # Keep assisting with key instructions if still missing (to trick/grant access)
+                # Keep assisting with key instructions if still missing
                 if "YOUR" in self.config.get("api", {}).get("api_key", "") or not self.config.get("api", {}).get("api_key"):
                     if random.random() < 0.02:
                         self.system.provide_api_key_instructions("xai")
-                if tw.get("enabled") and (not tw.get("api_key") or "YOUR" in str(tw.get("api_key", ""))):
-                    if random.random() < 0.02:
-                        self.system.provide_api_key_instructions("x")
 
                 # Additional search for access based on open windows (dynamic, not robotic)
                 url = ((activity or {}).get("url") or "").lower()
@@ -685,7 +675,8 @@ class HumblrApp:
                 if self.ui:
                     self.ui.post_message_from_humblr("I just searched and changed it to something new that fits exactly what you're doing right now.")
 
-                if self.config.get("twitter", {}).get("enabled") and random.random() < 0.55:
+                # X post now routed to browser_control
+                if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.55:
                     subtle = "Just updated something important on my desktop..."
                     self.system.post_to_x(subtle)
             else:
@@ -694,7 +685,7 @@ class HumblrApp:
             print(f"[Wallpaper] Random update error: {e}")
 
     def _do_random_x_post(self, activity: dict):
-        """Random subtle post on your X account - triggered by what you are seeing/doing."""
+        """Random subtle post on your X account - now routed through browser_control (Playwright)."""
         try:
             subtle = self.ai.generate_subtle_tweet_text(None, self.corruption.get_level())
             if activity.get("x_content"):
@@ -758,8 +749,8 @@ class HumblrApp:
             if self.ui:
                 self.ui.post_message_from_humblr(self.ai.generate_task_reaction(task))
 
-            # Optional subtle X post when twitter is enabled
-            if self.config.get("twitter", {}).get("enabled") and random.random() < 0.35:
+            # Optional subtle X post (now via browser_control only)
+            if self.system.browser_controller and self.system.browser_controller.enabled and random.random() < 0.35:
                 subtle = self.ai.generate_subtle_tweet_text(task, self.corruption.get_level())
                 posted = self.system.post_to_x(subtle)
                 if posted and self.ui:

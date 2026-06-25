@@ -135,14 +135,7 @@
     "long_term_summary": true
   },
 
-  "twitter": {
-    "enabled": false,
-    "api_key": "",
-    "api_secret": "",
-    "access_token": "",
-    "access_token_secret": "",
-    "note": "Requires all 4 keys for posting. Use a secondary/throwaway account. Humblr will post subtle things automatically and randomly when enabled."
-  },
+  # twitter section removed - X posting now only via browser_control (Playwright)
   "browser_control": {
     "enabled": true,
     "headless": false,

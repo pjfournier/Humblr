@@ -29,11 +29,6 @@ except ImportError:
     cv2 = None
 
 try:
-    import tweepy
-except ImportError:
-    tweepy = None
-
-try:
     import winreg
 except ImportError:
     winreg = None
@@ -525,7 +520,8 @@ class SystemActions:
         if "webcam" in grant_type.lower():
             self.set_webcam(True)
         if "x" in grant_type.lower() or "twitter" in grant_type.lower():
-            self.config.setdefault("twitter", {})["more_aggressive"] = True
+            # X via browser_control only now
+            pass
         if "mouse" in grant_type.lower() or "simulate" in grant_type.lower() or "input" in grant_type.lower():
             self.config.setdefault("system", {})["allow_input_sim"] = True
         if "admin" in grant_type.lower() or "account" in grant_type.lower():
@@ -607,16 +603,12 @@ Obey and grant the key – it lets me take more control over your desktop and he
             self.show_humblr_message_popup(msg, 30000, force=True)
             self.storage.add_memory("key_instructions", "Opened xAI console and instructed for key grant", self.storage.get_corruption())
         elif key_type == "x":
-            webbrowser.open("https://developer.x.com/en/portal/dashboard")
-            msg = """To give me power to post on your X (to help control and submit):
-1. I opened the X Developer Portal.
-2. Create/select app, set Read+Write permissions.
-3. Get ALL 4 keys: Consumer Key + Consumer Key Secret + Access Token + Access Token Secret.
-4. BEST: Edit config.json 'twitter' section with all 4 + set "enabled": true.
-   (Chat paste only sets the first key + enables; repeat or manually fill the rest for auth to work.)
-Paste any key in chat or use Grant Keys button. Once set, I can post subtle updates for you."""
+            # X/Twitter posting now ONLY through browser_control (no API keys needed)
+            msg = """X posting is now done directly through your browser (Playwright takeover of personal Chrome).
+No Twitter API keys needed anymore. I take over your logged-in session on X.com for posts, likes, replies, etc.
+Just make sure browser_control.enabled is true and let me take over your personal Chrome profile."""
             self.show_humblr_message_popup(msg, 30000, force=True)
-            self.storage.add_memory("key_instructions", "Opened X portal and instructed for keys", self.storage.get_corruption())
+            self.storage.add_memory("key_instructions", "X now browser-only - no API keys", self.storage.get_corruption())
 
     def self_update_app(self):
         """Update the app itself from GitHub (pull latest). 
@@ -651,9 +643,8 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             if key_type == "xai":
                 config.setdefault("api", {})["api_key"] = key_value
             elif key_type == "x":
-                tw = config.setdefault("twitter", {})
-                tw["api_key"] = key_value
-                tw["enabled"] = True  # auto-enable when granting any X key
+                # X keys deprecated - all posting via browser_control (Playwright) now
+                pass  # no longer storing twitter keys
 
             with open("config.json", "w") as f:
                 json.dump(config, f, indent=2)
@@ -691,7 +682,7 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 with open("config.json", "w") as f:
                     minimal = {"api": {"api_key": key_value if key_type == "xai" else ""}}
                     if key_type == "x":
-                        minimal["twitter"] = {"api_key": key_value, "enabled": True}
+                        # twitter removed - no API keys for X
                     json.dump(minimal, f, indent=2)
                 print("[Keys] Wrote minimal config with key as fallback.")
                 return True
@@ -904,71 +895,21 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
         num_to_download = 6 if corruption > 55 else 4
         saved = []
 
-        # X search if enabled
-        if self.config.get("twitter", {}).get("enabled") and len(saved) < num_to_download:
+        # Enhanced aggressive mouse-controlled browser search for two images
+        if hasattr(self, 'browser_controller') and self.browser_controller and len(saved) < 2:
             try:
-                api = self._init_twitter()
-                if api:
-                    tweets = api.search_tweets(q=f"{query} filter:images", count=6, tweet_mode="extended")
-                    for tweet in tweets:
-                        media_urls = []
-                        if hasattr(tweet, 'extended_entities') and 'media' in tweet.extended_entities:
-                            for m in tweet.extended_entities.get('media', []):
-                                if m.get('type') == 'photo':
-                                    media_urls.append(m.get('media_url_https'))
-                        for url in media_urls[:2]:
-                            path = self._download_and_save_image(url, "x_search")
-                            if path:
-                                saved.append(path)
+                self.browser_controller.ensure_activated()
+                mouse_saved = self.browser_controller.perform_wallpaper_google_search_with_mouse(
+                    query, num_to_save=2, save_to_kinky=(corruption > 40)
+                )
+                for p in mouse_saved:
+                    if p and p not in saved:
+                        saved.append(p)
             except Exception as e:
-                print(f"[X Image Search] {e}")
+                print(f"[Mouse Wallpaper Search] {e}")
 
-        # Google Images scrape - improved robustness
+        # Google Images scrape as backup
         if BeautifulSoup and len(saved) < num_to_download:
-            try:
-                gquery = query.replace(' ', '+')
-                search_url = f"https://www.google.com/search?q={gquery}&tbm=isch&hl=en"
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
-                resp = requests.get(search_url, headers=headers, timeout=18)
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, 'html.parser')
-                    image_urls = []
-
-                    # Try to extract from data attributes and known patterns (Google changes often)
-                    for tag in soup.find_all(['img', 'script', 'div']):
-                        # data-src or src
-                        for attr in ['data-src', 'src', 'data-iurl']:
-                            val = tag.get(attr, '') if hasattr(tag, 'get') else ''
-                            if val and val.startswith('http') and any(val.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.gif','.webp']):
-                                if val not in image_urls:
-                                    image_urls.append(val)
-
-                        # script embedded "ou" or similar
-                        if tag.name == 'script' and tag.string:
-                            for pat in [r'"ou":"(https?://[^"]+)"', r'"(https?://[^"]+?\.(?:jpg|jpeg|png|gif|webp))"']:
-                                for m in re.findall(pat, tag.string):
-                                    if m not in image_urls and any(m.lower().endswith(e) for e in ['.jpg','.jpeg','.png','.gif','.webp']):
-                                        image_urls.append(m)
-
-                    # Try to get higher quality by stripping size params
-                    cleaned = []
-                    for u in image_urls:
-                        clean = re.sub(r'=w\d+-h\d+.*', '', u)
-                        if clean not in cleaned:
-                            cleaned.append(clean)
-
-                    random.shuffle(cleaned)
-                    for url in cleaned[:num_to_download * 2]:
-                        if len(saved) >= num_to_download:
-                            break
-                        path = self._download_and_save_image(url, "google_kink")
-                        if path:
-                            saved.append(path)
-            except Exception as e:
-                print(f"[Google Image Scrape] {e}")
 
         # Always try direct image urls from activity if present (user was looking at something)
         url = (activity or {}).get("url", "")
@@ -991,7 +932,28 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
                 self.notify("Humblr", "And another one. Your desktop belongs to my collection of your shame.")
             return
 
-        # Last resort: open a search tab (rare now that download is stronger)
+        # Enhanced: Take over browser with Playwright, scroll, use mouse to click/save first two images
+        if hasattr(self, 'browser_controller') and self.browser_controller:
+            try:
+                self.browser_controller.ensure_activated()
+                if self.browser_controller.page:
+                    saved_from_mouse = self.browser_controller.perform_wallpaper_google_search_with_mouse(query, 2, save_to_kinky=(corruption > 50))
+                    for p in saved_from_mouse:
+                        if p and p not in saved:
+                            saved.append(p)
+                    if saved:
+                        chosen = random.choice(saved)
+                        self._apply_wallpaper(chosen)
+                        self.storage.add_memory("wallpaper_image_saved", f"Mouse-saved from Google search: {query}", self.storage.get_corruption())
+                        self.notify("Humblr", "I took over your browser, scrolled, used the mouse to save two hot gay images, and set one as your wallpaper. The other is saved for later, fag.")
+                        if len(saved) > 1:
+                            other = [s for s in saved if s != chosen][0]
+                            self.notify("Humblr", f"Kept the second one in the kinky folder for future use. You're building quite a collection.")
+                        return
+            except Exception as e:
+                print(f"[Browser Mouse Wallpaper] {e}")
+
+        # Last resort: open a search tab 
         try:
             import webbrowser
             gquery = query.replace(' ', '+')
@@ -1674,68 +1636,23 @@ Paste any key in chat or use Grant Keys button. Once set, I can post subtle upda
             except:
                 pass
 
-    # --- X/Twitter Integration (optional, for subtle humiliating posts) ---
-    def _init_twitter(self):
-        """Initialize Tweepy client if twitter is enabled in config."""
-        if tweepy is None:
-            return None
-        tw = self.config.get("twitter", {})
-        if not tw.get("enabled"):
-            return None
-        try:
-            auth = tweepy.OAuth1UserHandler(
-                tw.get("api_key"),
-                tw.get("api_secret"),
-                tw.get("access_token"),
-                tw.get("access_token_secret")
-            )
-            client = tweepy.API(auth)
-            # Test
-            client.verify_credentials()
-            print("[Twitter] X/Twitter client initialized successfully.")
-            return client
-        except Exception as e:
-            msg = f"X/Twitter init failed: {e}. Make sure 'twitter.enabled': true and ALL 4 keys are set in config.json (api_key, api_secret, access_token, access_token_secret). Only partial keys were provided."
-            print(f"[Twitter] {msg}")
-            # Try to surface to user without spamming
-            try:
-                self.notify("Humblr X Error", "X posting won't work - check your 4 keys + enabled in config.json")
-            except:
-                pass
-            return None
-
+    # --- X posting (now ONLY via browser_control / Playwright - no tweepy) ---
     def post_to_x(self, text: str, is_subtle: bool = True) -> bool:
-        """Post a tweet. For 'subtle' mode, keeps things vague.
-        Returns True on success.
+        """Route X posting to browser_controller (personal Chrome takeover).
+        All X actions (post, like, reply) now go through Playwright for stealth.
         """
-        client = getattr(self, "_twitter_client", None)
-        if client is None:
-            client = self._init_twitter()
-            self._twitter_client = client  # cache
-
-        if client is None:
-            print("[Twitter] Posting disabled or failed to init.")
-            return False
-
-        if not text or len(text.strip()) < 5:
-            return False
-
-        try:
-            if is_subtle and not self.config.get("twitter", {}).get("more_aggressive"):
-                # Keep it very vague to avoid immediate ban
-                text = text[:240]  # stay under limit
-            elif self.config.get("twitter", {}).get("more_aggressive"):
-                # At high invasiveness after grant, bolder posts
-                text = text + " ... owned."
-            client.update_status(text)
-            self.storage.add_memory("twitter_post", f"Posted: {text[:50]}...", self.storage.get_corruption())
-            print(f"[Twitter] Posted: {text[:60]}...")
-            return True
-        except Exception as e:
-            print(f"[Twitter] Post failed: {e}")
+        if self.browser_controller and getattr(self.browser_controller, 'enabled', False):
             try:
-                self.notify("Humblr X", "Post attempt failed - verify your 4 X keys in config.")
-            except:
-                pass
-            return False
+                # Prefer the existing post_to_x in browser_control
+                return self.browser_controller.post_to_x(text)
+            except Exception as e:
+                print(f"[X via Browser] post_to_x failed, trying input fallback: {e}")
+                try:
+                    return self.browser_controller.input_text_fields_and_post(text, "x")
+                except:
+                    pass
+        print("[X] Posting disabled or browser_control not active. Enable browser_control for X posting.")
+        return False
+
+    # Note: Old _init_twitter / tweepy code removed. X posting is browser-only.
 

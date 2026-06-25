@@ -116,7 +116,6 @@ hiddenimports += [
     'psutil',
     'requests',
     'openai',
-    'tweepy',
     'bs4',
     'beautifulsoup4',
     'pystray',

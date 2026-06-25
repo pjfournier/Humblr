@@ -61,13 +61,6 @@ DEFAULT_CONFIG = {
         "capture_on_turn_on": True,
         "allow_ai_analysis": True
     },
-    "twitter": {
-        "enabled": False,
-        "api_key": "",
-        "api_secret": "",
-        "access_token": "",
-        "access_token_secret": ""
-    },
     "persistence": {
         "hard_persistence": True,
         "registry_hkcu": True,
